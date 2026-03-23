@@ -1,0 +1,10 @@
+# One company per line. Jobs from these companies are skipped
+# unless the same company is also in high_preference_companies.txt.
+# Example:
+# Some Recruiting Agency
+
+Honeywell
+Scoutit
+Turing
+
+

@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: linkedin-job-scraper
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --threads 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: LINKEDIN_LI_AT
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB
+        value: linkedin_jobs
+      - key: MONGO_COLLECTION
+        value: jobs
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: MAX_PAGES
+        value: "5"
+      - key: NO_NOTIFY
+        value: "false"
+      - key: CHROMEDRIVER_HEADLESS
+        value: "true"

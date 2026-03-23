@@ -1,0 +1,22 @@
+# HTTP & parsing
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+
+# Selenium & browser automation
+selenium>=4.15.2
+webdriver-manager>=4.0.1
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# MongoDB
+pymongo>=4.6.1
+certifi>=2024.2.2
+
+# Resume parsing (PDF)
+PyPDF2>=3.0.1
+
+# Web server
+flask>=3.0.0
+gunicorn>=21.2.0

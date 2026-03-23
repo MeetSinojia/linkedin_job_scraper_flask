@@ -1,0 +1,7 @@
+# One company per line. Jobs from these companies are always kept.
+# Example:
+# Google
+# Atlassian
+
+Cisco
+Adobe
