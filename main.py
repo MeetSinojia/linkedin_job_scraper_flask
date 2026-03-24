@@ -1023,13 +1023,13 @@ def main(urls_file_override=None, max_pages_override=None):
         in_high = _company_matches(company_name, high_pref_companies)
         in_skip = _company_matches(company_name, skip_companies)
 
-        # High pref: always include, no relevance check, no repost check, no extra fetch
-        if in_high:
-            job["is_high_preference"] = True
-            selected.append(job)
-            continue
+        # High pref path is temporarily disabled per user request (commented out):
+        # if in_high:
+        #     job["is_high_preference"] = True
+        #     selected.append(job)
+        #     continue
 
-        # Skip companies (not high pref)
+        # Skip companies always applied
         if in_skip:
             continue
 
