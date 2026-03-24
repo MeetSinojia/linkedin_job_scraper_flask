@@ -698,26 +698,9 @@ def scrape(search_url, session, li_at=None, max_pages=None, keywords=None, headf
     return all_jobs
 
 def save_output(jobs):
-    import csv
-    with open(OUT_TEXT, "w", encoding="utf-8") as fh:
-        for i, j in enumerate(jobs, 1):
-            jid = j.get("job_id") if j.get("job_id") else "None"
-            fh.write(f"=== JOB #{i} ===\n")
-            fh.write(f"job_url: {j.get('job_url')}\n")
-            fh.write(f"job_id: {jid}\n")
-            fh.write(f"title: {j.get('title') or ''}\n")
-            fh.write(f"company: {j.get('company') or ''}\n")
-            fh.write(f"location: {j.get('location') or ''}\n")
-            fh.write(f"date_posted: {j.get('date_posted') or 'None'}\n")
-            fh.write(f"apply_link: {j.get('apply_link') or ''}\n\n")
-    if jobs:
-        keys = ["job_url","job_id","title","company","location","date_posted","apply_link"]
-        with open(OUT_CSV, "w", newline="", encoding="utf-8") as fh:
-            writer = csv.DictWriter(fh, fieldnames=keys)
-            writer.writeheader()
-            for j in jobs:
-                writer.writerow({k: (j.get(k) or "") for k in keys})
-    print(f"[+] Saved {len(jobs)} jobs to {OUT_TEXT} and {OUT_CSV}")
+    # In read-only container environments (Vercel/Render), avoid writing any file.
+    # Keep this function a no-op so the scraper pipeline can continue and use DB/Telegram only.
+    print(f"[+] save_output() no-op: {len(jobs)} jobs processed (file write disabled in this environment)")
 
 
 def _build_aggregated_messages(new_jobs, max_items_per_message=20, max_chars=1500):
