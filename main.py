@@ -82,64 +82,54 @@ def _load_company_list(path):
         print(f"[!] Could not read company list '{path}': {e}")
     return items
 
-def _gdrive_url_to_csv(url: str) -> str:
+def _extract_sheet_id(url: str) -> str:
+    """Extract Google Sheets spreadsheet ID from any share/edit URL."""
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
+    return m.group(1) if m else None
+
+
+def _fetch_sheet_as_set(sheet_id: str, sheet_name: str) -> set:
     """
-    Convert any Google Drive / Google Sheets share URL to a direct CSV download URL.
-      - Sheets edit/share link  → export as CSV (first sheet)
-      - Drive file share link   → direct download
+    Fetch a single named sheet tab from a public Google Sheet as CSV.
+    Returns a set of normalised company names from column A (skips header row).
     """
-    import re as _re
-    # Google Sheets: extract spreadsheet ID
-    m = _re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
-    if m:
-        return f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=csv"
-    # Google Drive file: extract file ID
-    m = _re.search(r"/file/d/([a-zA-Z0-9_-]+)", url)
-    if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
-    # Already a direct/export URL — return as-is
-    return url
-
-
-def _load_company_list_from_gdrive(url: str) -> set:
-    """
-    Fetch a CSV/Excel from a public Google Drive / Sheets URL.
-
-    Expected sheet format (two columns, no strict header required):
-        company_name  |  type
-        Adobe         |  high_pref
-        Honeywell     |  skip
-
-    If there's only one column, all entries are treated as high_pref.
-    Lines/rows where type == 'skip' go to skip set; everything else → high_pref.
-
-    Returns: (high_pref_set, skip_set)
-    """
-    import io
-    high_pref, skip = set(), set()
+    import io, csv as _csv
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet={sheet_name}"
+    print(f"[*] Fetching sheet '{sheet_name}' from GDrive...")
     try:
-        csv_url = _gdrive_url_to_csv(url)
-        print(f"[*] Fetching company list from GDrive: {csv_url}")
-        r = requests.get(csv_url, timeout=15)
+        r = requests.get(url, timeout=15)
         r.raise_for_status()
-        import csv as _csv
+        companies = set()
         reader = _csv.reader(io.StringIO(r.text))
-        for row in reader:
+        for i, row in enumerate(reader):
             if not row:
                 continue
             name = row[0].strip()
-            if not name or name.lower() in ("company", "company_name", "name", "#"):
-                continue  # skip header row
-            if name.startswith("#"):
+            # skip blank, header-like rows
+            if not name or name.lower() in ("company", "company_name", "name") or name.startswith("#"):
                 continue
-            kind = row[1].strip().lower() if len(row) > 1 else "high_pref"
-            if kind in ("skip", "blacklist", "exclude"):
-                skip.add(_norm_company(name))
-            else:
-                high_pref.add(_norm_company(name))
-        print(f"[*] GDrive companies loaded: high_pref={len(high_pref)}, skip={len(skip)}")
+            companies.add(_norm_company(name))
+        print(f"[*] Sheet '{sheet_name}': loaded {len(companies)} companies")
+        return companies
     except Exception as e:
-        print(f"[!] Could not load company list from GDrive '{url}': {e}")
+        print(f"[!] Could not fetch sheet '{sheet_name}': {e}")
+        return set()
+
+
+def _load_company_list_from_gdrive(url: str):
+    """
+    Load high_pref and skip company sets from a public Google Sheet.
+    Expects two tabs named exactly: 'high_pref' and 'skip'.
+    Each tab has company names in column A (first row can be a header).
+    Returns: (high_pref_set, skip_set)
+    """
+    sheet_id = _extract_sheet_id(url)
+    if not sheet_id:
+        print(f"[!] Could not extract sheet ID from URL: {url}")
+        return set(), set()
+
+    high_pref = _fetch_sheet_as_set(sheet_id, "high_pref")
+    skip      = _fetch_sheet_as_set(sheet_id, "skip")
     return high_pref, skip
 
 
@@ -752,6 +742,7 @@ def _build_aggregated_messages(new_jobs, max_items_per_message=20, max_chars=150
             title = (job.get("title") or "No title").strip()
             company = (job.get("company") or "Unknown").strip()
             location = (job.get("location") or "Unknown").strip()
+            date_posted = (job.get("date_posted") or "").strip()
             link = job.get("apply_link") or job.get("job_url") or ""
             # Telegram legacy Markdown does not use ** for bold; use HTML for reliable formatting.
             tags = []
@@ -764,8 +755,10 @@ def _build_aggregated_messages(new_jobs, max_items_per_message=20, max_chars=150
             safe_co = html.escape(company)
             safe_loc = html.escape(location)
             safe_link = html.escape(link, quote=True)
+            posted_line = f"   📅 Posted: {html.escape(date_posted)}\n" if date_posted else ""
             entry = (
                 f"{idx_global}) {tag_text}{safe_title} — {safe_co} — {safe_loc}\n"
+                f"{posted_line}"
                 f'   <a href="{safe_link}">Apply</a>\n'
             )
 
