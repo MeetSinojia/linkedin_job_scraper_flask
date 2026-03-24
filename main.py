@@ -88,8 +88,11 @@ def _extract_sheet_id(url: str) -> str:
     return m.group(1) if m else None
 
 
-def _fetch_sheet_as_set(sheet_id: str, gid: str, label: str) -> set:
-    """Fetch a sheet tab by gid. Returns normalised company names from column A."""
+def _fetch_sheet_as_set(sheet_id: str, gid: str, label: str) -> tuple:
+    """
+    Fetch a sheet tab by gid. Returns (companies_set, success_flag).
+    success_flag=True means fetch succeeded (even if empty); False means fetch failed.
+    """
     import io, csv as _csv
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     print(f"[*] Fetching '{label}' (gid={gid})...")
@@ -107,10 +110,10 @@ def _fetch_sheet_as_set(sheet_id: str, gid: str, label: str) -> set:
                 continue
             companies.add(_norm_company(name))
         print(f"[*] '{label}': loaded {len(companies)} companies")
-        return companies
+        return companies, True  # success flag
     except Exception as e:
         print(f"[!] Could not fetch '{label}': {e}")
-        return set()
+        return set(), False  # failed to fetch
 
 
 def _load_company_list_from_gdrive(url: str):
@@ -118,18 +121,20 @@ def _load_company_list_from_gdrive(url: str):
     Load high_pref and skip sets from a public Google Sheet using gid.
     gid=0 → high_pref sheet, gid=1877286130 → skip sheet (from your sheet URLs).
     Override via GDRIVE_GID_HIGH_PREF / GDRIVE_GID_SKIP env vars if needed.
+    Returns (high_pref_set, skip_set, both_succeeded).
     """
     sheet_id = _extract_sheet_id(url)
     if not sheet_id:
         print(f"[!] Could not extract sheet ID from URL: {url}")
-        return set(), set()
+        return set(), set(), False
 
     gid_high = os.getenv("GDRIVE_GID_HIGH_PREF", "0")
     gid_skip = os.getenv("GDRIVE_GID_SKIP", "1877286130")
 
-    high_pref = _fetch_sheet_as_set(sheet_id, gid_high, "high_pref")
-    skip      = _fetch_sheet_as_set(sheet_id, gid_skip, "skip")
-    return high_pref, skip
+    high_pref, high_success = _fetch_sheet_as_set(sheet_id, gid_high, "high_pref")
+    skip, skip_success = _fetch_sheet_as_set(sheet_id, gid_skip, "skip")
+    both_succeeded = high_success and skip_success
+    return high_pref, skip, both_succeeded
 
 
 def _company_matches(company_name, company_set):
@@ -974,11 +979,17 @@ def main(urls_file_override=None, max_pages_override=None):
     high_pref_companies = _load_company_list(high_pref_file)
     skip_companies = _load_company_list(skip_comp_file)
 
-    # GDrive overrides txt files if set
+    # GDrive overrides txt files if set and successfully fetches both sheets
     if gdrive_companies_url:
-        gdrive_high, gdrive_skip = _load_company_list_from_gdrive(gdrive_companies_url)
-        high_pref_companies = gdrive_high or high_pref_companies
-        skip_companies = gdrive_skip or skip_companies
+        gdrive_high, gdrive_skip, fetch_success = _load_company_list_from_gdrive(gdrive_companies_url)
+        if fetch_success:
+            # Use Google Sheets data if both sheets fetched successfully
+            high_pref_companies = gdrive_high
+            skip_companies = gdrive_skip
+            print("[*] Using company lists from Google Sheets (both sheets fetched successfully)")
+        else:
+            print("[!] Google Sheets fetch had issues; falling back to local txt files")
+            # Keep the local file-based lists
 
     print(f"[*] Loaded company lists: high_pref={len(high_pref_companies)}, skip={len(skip_companies)}")
 
