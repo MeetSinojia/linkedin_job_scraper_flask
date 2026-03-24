@@ -1037,20 +1037,15 @@ def main(urls_file_override=None, max_pages_override=None):
         company_name = job.get("company") or ""
         in_high = _company_matches(company_name, high_pref_companies)
         in_skip = _company_matches(company_name, skip_companies)
-        if in_skip and not in_high:
-            continue
 
+        # High pref: always include, no relevance check, no repost check, no extra fetch
         if in_high:
             job["is_high_preference"] = True
-            # High-pref path skips relevance fetch; refresh repost from HTML if not set.
-            if not job.get("is_reposted"):
-                try:
-                    rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
-                    if rr.status_code == 200 and not looks_like_error_page(rr.text):
-                        job["is_reposted"] = bool(looks_like_reposted(rr.text))
-                except Exception:
-                    pass
             selected.append(job)
+            continue
+
+        # Skip companies (not high pref)
+        if in_skip:
             continue
 
         # Re-fetch job page for relevance decision if needed.

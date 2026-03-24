@@ -88,30 +88,28 @@ def health():
     return jsonify({"status": "ok", "service": "linkedin-job-scraper"}), 200
 
 
-@app.route("/run-scraper", methods=["GET", "POST"])
+@app.get("/run-scraper")
 def run_scraper():
     if _get_state()["status"] == "running":
-        return jsonify({"error": "Scraper already running", "state": _get_state()}), 409
+        return jsonify({"message": "already running", "state": _get_state()}), 200
 
     urls_file = os.getenv("URLS_FILE", "config/urls.txt")
     max_pages = _env_int("MAX_PAGES", None)
 
-    t = threading.Thread(target=_run_bg, args=(urls_file, max_pages, "main"), daemon=True)
-    t.start()
-    return jsonify({"message": "Main scraper triggered", "state": _get_state()}), 202
+    threading.Thread(target=_run_bg, args=(urls_file, max_pages, "main"), daemon=True).start()
+    return jsonify({"message": "triggered"}), 200
 
 
-@app.route("/run-scraper-under10", methods=["GET", "POST"])
+@app.get("/run-scraper-under10")
 def run_scraper_under10():
     if _get_state()["status"] == "running":
-        return jsonify({"error": "Scraper already running", "state": _get_state()}), 409
+        return jsonify({"message": "already running", "state": _get_state()}), 200
 
     urls_file = os.getenv("URLS_FILE_UNDER10", "config/urls_under10.txt")
     max_pages = _env_int("MAX_PAGES_UNDER10", 2)
 
-    t = threading.Thread(target=_run_bg, args=(urls_file, max_pages, "under10"), daemon=True)
-    t.start()
-    return jsonify({"message": "Under-10 scraper triggered", "state": _get_state()}), 202
+    threading.Thread(target=_run_bg, args=(urls_file, max_pages, "under10"), daemon=True).start()
+    return jsonify({"message": "triggered"}), 200
 
 
 @app.route("/flush-db", methods=["GET", "POST"])
