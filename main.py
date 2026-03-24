@@ -88,48 +88,47 @@ def _extract_sheet_id(url: str) -> str:
     return m.group(1) if m else None
 
 
-def _fetch_sheet_as_set(sheet_id: str, sheet_name: str) -> set:
-    """
-    Fetch a single named sheet tab from a public Google Sheet as CSV.
-    Returns a set of normalised company names from column A (skips header row).
-    """
+def _fetch_sheet_as_set(sheet_id: str, gid: str, label: str) -> set:
+    """Fetch a sheet tab by gid. Returns normalised company names from column A."""
     import io, csv as _csv
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&sheet={sheet_name}"
-    print(f"[*] Fetching sheet '{sheet_name}' from GDrive...")
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    print(f"[*] Fetching '{label}' (gid={gid})...")
     try:
         r = requests.get(url, timeout=15)
         r.raise_for_status()
         companies = set()
-        reader = _csv.reader(io.StringIO(r.text))
-        for i, row in enumerate(reader):
+        rows = list(_csv.reader(io.StringIO(r.text)))
+        print(f"[*] '{label}' first 3 rows: {rows[:3]}")
+        for row in rows:
             if not row:
                 continue
             name = row[0].strip()
-            # skip blank, header-like rows
             if not name or name.lower() in ("company", "company_name", "name") or name.startswith("#"):
                 continue
             companies.add(_norm_company(name))
-        print(f"[*] Sheet '{sheet_name}': loaded {len(companies)} companies")
+        print(f"[*] '{label}': loaded {len(companies)} companies")
         return companies
     except Exception as e:
-        print(f"[!] Could not fetch sheet '{sheet_name}': {e}")
+        print(f"[!] Could not fetch '{label}': {e}")
         return set()
 
 
 def _load_company_list_from_gdrive(url: str):
     """
-    Load high_pref and skip company sets from a public Google Sheet.
-    Expects two tabs named exactly: 'high_pref' and 'skip'.
-    Each tab has company names in column A (first row can be a header).
-    Returns: (high_pref_set, skip_set)
+    Load high_pref and skip sets from a public Google Sheet using gid.
+    gid=0 → high_pref sheet, gid=1877286130 → skip sheet (from your sheet URLs).
+    Override via GDRIVE_GID_HIGH_PREF / GDRIVE_GID_SKIP env vars if needed.
     """
     sheet_id = _extract_sheet_id(url)
     if not sheet_id:
         print(f"[!] Could not extract sheet ID from URL: {url}")
         return set(), set()
 
-    high_pref = _fetch_sheet_as_set(sheet_id, "high_pref")
-    skip      = _fetch_sheet_as_set(sheet_id, "skip")
+    gid_high = os.getenv("GDRIVE_GID_HIGH_PREF", "0")
+    gid_skip = os.getenv("GDRIVE_GID_SKIP", "1877286130")
+
+    high_pref = _fetch_sheet_as_set(sheet_id, gid_high, "high_pref")
+    skip      = _fetch_sheet_as_set(sheet_id, gid_skip, "skip")
     return high_pref, skip
 
 

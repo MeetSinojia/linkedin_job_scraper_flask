@@ -29,6 +29,10 @@ services:
         value: "2"
       - key: GDRIVE_COMPANIES_URL
         sync: false
+      - key: GDRIVE_GID_HIGH_PREF
+        value: "0"
+      - key: GDRIVE_GID_SKIP
+        value: "1877286130"
       - key: NO_NOTIFY
         value: "false"
       - key: CHROMEDRIVER_HEADLESS
