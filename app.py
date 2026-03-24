@@ -14,6 +14,8 @@ import os
 import sys
 import traceback
 import logging
+from threading import Thread, Lock
+from datetime import datetime
 
 from flask import Flask, jsonify
 
@@ -33,6 +35,14 @@ except Exception:
 
 app = Flask(__name__)
 logger.info("Flask app initialized")
+
+scraper_state = {
+    "running": False,
+    "last_run_at": None,
+    "last_status": "idle",
+    "last_error": None,
+}
+state_lock = Lock()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,36 +65,72 @@ def health():
 
 @app.get("/run-scraper")
 def run_scraper():
-    logger.info("GET /run-scraper - starting scraper")
+    logger.info("GET /run-scraper - trigger scraper")
     urls_file = os.getenv("URLS_FILE", "config/urls.txt")
     max_pages = _env_int("MAX_PAGES", None)
 
-    try:
-        import main as scraper_main
-        logger.info(f"Running scraper with urls_file={urls_file}, max_pages={max_pages}")
-        scraper_main.main(urls_file_override=urls_file, max_pages_override=max_pages)
-        logger.info("Scraper completed successfully")
-        return jsonify({"message": "scraper completed successfully"}), 200
-    except Exception as e:
-        logger.error(f"Scraper error: {e}", exc_info=True)
-        return jsonify({"error": str(e), "traceback": traceback.format_exc(limit=5)}), 500
+    with state_lock:
+        if scraper_state["running"]:
+            return jsonify({"message": "scraper already running"}), 409
+        scraper_state["running"] = True
+        scraper_state["last_run_at"] = datetime.utcnow().isoformat() + "Z"
+        scraper_state["last_status"] = "running"
+        scraper_state["last_error"] = None
+
+    def background_job():
+        try:
+            import main as scraper_main
+            logger.info(f"Running scraper in background with urls_file={urls_file}, max_pages={max_pages}")
+            scraper_main.main(urls_file_override=urls_file, max_pages_override=max_pages)
+            logger.info("Background scraper completed successfully")
+            with state_lock:
+                scraper_state["last_status"] = "completed"
+        except Exception as e:
+            logger.error(f"Background scraper error: {e}", exc_info=True)
+            with state_lock:
+                scraper_state["last_status"] = "error"
+                scraper_state["last_error"] = str(e)
+        finally:
+            with state_lock:
+                scraper_state["running"] = False
+
+    Thread(target=background_job, daemon=True).start()
+    return jsonify({"message": "scraper triggered", "status": "running"}), 202
 
 
 @app.get("/run-scraper-under10")
 def run_scraper_under10():
-    logger.info("GET /run-scraper-under10 - starting under10 scraper")
+    logger.info("GET /run-scraper-under10 - trigger under10 scraper")
     urls_file = os.getenv("URLS_FILE_UNDER10", "config/urls_under10.txt")
     max_pages = _env_int("MAX_PAGES_UNDER10", 2)
 
-    try:
-        import main as scraper_main
-        logger.info(f"Running under10 scraper with urls_file={urls_file}, max_pages={max_pages}")
-        scraper_main.main(urls_file_override=urls_file, max_pages_override=max_pages)
-        logger.info("Under10 scraper completed successfully")
-        return jsonify({"message": "under10 scraper completed successfully"}), 200
-    except Exception as e:
-        logger.error(f"Under10 scraper error: {e}", exc_info=True)
-        return jsonify({"error": str(e), "traceback": traceback.format_exc(limit=5)}), 500
+    with state_lock:
+        if scraper_state["running"]:
+            return jsonify({"message": "scraper already running"}), 409
+        scraper_state["running"] = True
+        scraper_state["last_run_at"] = datetime.utcnow().isoformat() + "Z"
+        scraper_state["last_status"] = "running"
+        scraper_state["last_error"] = None
+
+    def background_job():
+        try:
+            import main as scraper_main
+            logger.info(f"Running under10 scraper in background with urls_file={urls_file}, max_pages={max_pages}")
+            scraper_main.main(urls_file_override=urls_file, max_pages_override=max_pages)
+            logger.info("Background under10 scraper completed successfully")
+            with state_lock:
+                scraper_state["last_status"] = "completed"
+        except Exception as e:
+            logger.error(f"Background under10 scraper error: {e}", exc_info=True)
+            with state_lock:
+                scraper_state["last_status"] = "error"
+                scraper_state["last_error"] = str(e)
+        finally:
+            with state_lock:
+                scraper_state["running"] = False
+
+    Thread(target=background_job, daemon=True).start()
+    return jsonify({"message": "under10 scraper triggered", "status": "running"}), 202
 
 
 @app.route("/flush-db", methods=["GET", "POST"])
@@ -112,7 +158,13 @@ def flush_db():
 @app.get("/status")
 def status():
     logger.info("GET /status - health check")
-    return jsonify({"status": "ok", "service": "linkedin-job-scraper"}), 200
+    with state_lock:
+        state = scraper_state.copy()
+    return jsonify({
+        "status": "ok",
+        "service": "linkedin-job-scraper",
+        "scraper": state,
+    }), 200
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────
