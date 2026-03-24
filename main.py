@@ -1074,8 +1074,6 @@ def main(urls_file_override=None, max_pages_override=None):
 
     print(f"[*] Jobs selected after post-scrape filtering: {len(selected)}")
 
-    save_output(selected)
-
     # Insert new jobs into MongoDB (dedupe by job_url) + Telegram only for newly inserted
     send_notifications = not no_notify
     push_jobs_to_db_and_telegram(selected, send_notifications)
