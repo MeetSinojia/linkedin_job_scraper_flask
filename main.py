@@ -52,8 +52,9 @@ except Exception:
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
               "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118 Safari/537.36")
 PAGE_SIZE = 25
-OUT_TEXT = "linkedin_jobs_company_portal.txt"
-OUT_CSV = "linkedin_jobs_company_portal.csv"
+# Use env vars or /tmp in containerized read-only environments.
+OUT_TEXT = os.getenv("OUTPUT_TEXT", "/tmp/linkedin_jobs_company_portal.txt")
+OUT_CSV = os.getenv("OUTPUT_CSV", "/tmp/linkedin_jobs_company_portal.csv")
 REQUEST_TIMEOUT = 20
 # words indicating a repost (skip these jobs)
 REPOST_RE = re.compile(r'\b(re-?post(?:ed|ing)?|repost)\b', re.I)
