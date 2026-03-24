@@ -19,8 +19,16 @@ services:
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+      - key: URLS_FILE
+        value: config/urls.txt
       - key: MAX_PAGES
         value: "5"
+      - key: URLS_FILE_UNDER10
+        value: config/urls_under10.txt
+      - key: MAX_PAGES_UNDER10
+        value: "2"
+      - key: GDRIVE_COMPANIES_URL
+        sync: false
       - key: NO_NOTIFY
         value: "false"
       - key: CHROMEDRIVER_HEADLESS

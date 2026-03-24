@@ -82,6 +82,67 @@ def _load_company_list(path):
         print(f"[!] Could not read company list '{path}': {e}")
     return items
 
+def _gdrive_url_to_csv(url: str) -> str:
+    """
+    Convert any Google Drive / Google Sheets share URL to a direct CSV download URL.
+      - Sheets edit/share link  → export as CSV (first sheet)
+      - Drive file share link   → direct download
+    """
+    import re as _re
+    # Google Sheets: extract spreadsheet ID
+    m = _re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=csv"
+    # Google Drive file: extract file ID
+    m = _re.search(r"/file/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    # Already a direct/export URL — return as-is
+    return url
+
+
+def _load_company_list_from_gdrive(url: str) -> set:
+    """
+    Fetch a CSV/Excel from a public Google Drive / Sheets URL.
+
+    Expected sheet format (two columns, no strict header required):
+        company_name  |  type
+        Adobe         |  high_pref
+        Honeywell     |  skip
+
+    If there's only one column, all entries are treated as high_pref.
+    Lines/rows where type == 'skip' go to skip set; everything else → high_pref.
+
+    Returns: (high_pref_set, skip_set)
+    """
+    import io
+    high_pref, skip = set(), set()
+    try:
+        csv_url = _gdrive_url_to_csv(url)
+        print(f"[*] Fetching company list from GDrive: {csv_url}")
+        r = requests.get(csv_url, timeout=15)
+        r.raise_for_status()
+        import csv as _csv
+        reader = _csv.reader(io.StringIO(r.text))
+        for row in reader:
+            if not row:
+                continue
+            name = row[0].strip()
+            if not name or name.lower() in ("company", "company_name", "name", "#"):
+                continue  # skip header row
+            if name.startswith("#"):
+                continue
+            kind = row[1].strip().lower() if len(row) > 1 else "high_pref"
+            if kind in ("skip", "blacklist", "exclude"):
+                skip.add(_norm_company(name))
+            else:
+                high_pref.add(_norm_company(name))
+        print(f"[*] GDrive companies loaded: high_pref={len(high_pref)}, skip={len(skip)}")
+    except Exception as e:
+        print(f"[!] Could not load company list from GDrive '{url}': {e}")
+    return high_pref, skip
+
+
 def _company_matches(company_name, company_set):
     c = _norm_company(company_name)
     if not c:
@@ -223,110 +284,151 @@ def extract_fields_from_html(html, job_url):
 
 def looks_like_reposted(text):
     """
-    Detect LinkedIn 'Reposted' job markers.
+    Detect LinkedIn 'Reposted' job markers (e.g. "· Reposted 5 hours ago").
 
-    LinkedIn's current HTML (confirmed from inspector) splits "Reposted" and
-    "5 hours ago" across nested spans with HTML comment nodes in between:
-
-        <span class="tvm__text tvm__text--positive">
-          <strong><!---->Reposted
-            <span class="white-space-pre"> </span>
-            <span><!---->5 hours ago<!----></span>
-          </strong>
-        </span>
-
-    Strategy (ordered by reliability):
-      1. CSS selector on tvm__text--positive  ← PRIMARY: targets LinkedIn's
-         green badge class used exclusively for the Reposted indicator.
-      2. CSS selector on the new top-card container class.
-      3. Raw-HTML regex on the <strong> block (handles split nodes via .{0,200}).
-      4. Fallback: collapsed plain-text patterns for older LinkedIn HTML.
+    LinkedIn often splits "Reposted" and the time across nodes; we check the
+    job top-card text as well as raw HTML and attributes.
     """
     if not text:
         return False
 
+    low = text.lower().replace("\u00a0", " ")
+    collapsed = re.sub(r"\s+", " ", low)
     try:
         soup = BeautifulSoup(text, "lxml")
     except Exception:
         soup = None
 
-    # ------------------------------------------------------------------ #
-    # CHECK 1 — tvm__text--positive span (LinkedIn's current structure)   #
-    # This is the green-coloured badge span LinkedIn uses for "Reposted". #
-    # BeautifulSoup's get_text() joins split child nodes cleanly,         #
-    # so HTML comments and nested spans are no longer a problem.          #
-    # ------------------------------------------------------------------ #
-    if soup:
-        for el in soup.select("span.tvm__text--positive"):
-            if "repost" in el.get_text(" ", strip=True).lower():
-                return True
-
-    # ------------------------------------------------------------------ #
-    # CHECK 2 — new top-card container (job-details-jobs-unified-top-card #
-    # __primary-description-container) confirmed in current LinkedIn HTML  #
-    # ------------------------------------------------------------------ #
-    if soup:
-        container = soup.select_one(
-            "div.job-details-jobs-unified-top-card__primary-description-container"
-        )
-        if container:
-            blob = container.get_text(" ", strip=True).lower()
-            if "repost" in blob:
-                return True
-
-    # ------------------------------------------------------------------ #
-    # CHECK 3 — raw HTML regex on <strong> block                          #
-    # Handles the cross-node split: "Reposted ... 5 hours ago" where      #
-    # the gap contains span/comment markup up to ~200 chars.              #
-    # ------------------------------------------------------------------ #
+    # --- High-signal plain-text patterns (UI copy like user's Cisco/Adobe examples) ---
+    # "Reposted 5 hours ago", "Re-posted · 2 days ago", "India · Reposted 5 hours ago ·"
     if re.search(
-        r"(?is)<strong[^>]*>\s*(?:<!---->\s*)?re-?posted\b.{0,200}?\d+\s*"
-        r"(?:sec(?:ond)?s?|min(?:ute)?s?|hr?s?|hour|hours|day|days|week|weeks|month|months)"
-        r".{0,60}?ago",
+        r"(?i)\bre-?posted\s+\d+\s*(?:sec|second|seconds|min|mins?|minute|minutes|hr|hrs?|hour|hours|day|days|week|weeks|month|months)s?\s+ago\b",
+        collapsed,
+    ):
+        return True
+    if re.search(
+        r"(?i)[·•\|,]\s*re-?posted\s+\d+\s*(?:sec|second|seconds|min|mins?|minute|minutes|hr|hrs?|hour|hours|day|days|week|weeks)s?\s+ago\b",
+        collapsed,
+    ):
+        return True
+    # Cross-tag HTML: "Reposted</span>...5 hours ago"
+    if re.search(
+        r"(?is)\bre-?posted\b.{0,160}?\d+\s*(?:sec|second|seconds|min|mins?|minute|minutes|hr|hrs?|hour|hours|day|days|week|weeks)s?.{0,40}?\bago\b",
         text,
     ):
         return True
 
-    # ------------------------------------------------------------------ #
-    # CHECK 4 — fallback plain-text / older LinkedIn structure            #
-    # ------------------------------------------------------------------ #
-    low = text.lower().replace("\u00a0", " ")
-    collapsed = re.sub(r"\s+", " ", low)
-
-    # "Reposted 5 hours ago" as nearly-continuous text (old HTML / guest API)
+    # Explicit strong-tag copy (matches your pasted markup)
+    # e.g. <strong>Reposted 5 hours ago</strong>
     if re.search(
-        r"(?i)\bre-?posted\s+\d+\s*"
-        r"(?:sec(?:ond)?s?|min(?:ute)?s?|hr?s?|hour|hours|day|days|week|weeks|month|months)"
-        r"\s+ago\b",
-        collapsed,
+        r"(?is)<strong[^>]*>\s*re-?posted\s+\d+\s*(?:sec|second|seconds|min|mins?|minute|minutes|hr|hrs?|hour|hours|day|days|week|weeks|month|months)\s+ago\s*</strong>",
+        text,
     ):
         return True
 
-    # "· Reposted 2 days ago" pattern
-    if re.search(
-        r"(?i)[·•|,]\s*re-?posted\s+\d+\s*"
-        r"(?:sec(?:ond)?s?|min(?:ute)?s?|hr?s?|hour|hours|day|days|week|weeks)"
-        r"\s+ago\b",
-        collapsed,
-    ):
-        return True
-
-    # Older top-card containers LinkedIn used before the tvm__text refactor
+    # Top-card only: "Bengaluru, India · Reposted 5 hours ago · Over 100 people..."
     if soup:
         for sel in (
+            "div.jobs-unified-top-card",
             "div.jobs-unified-top-card__primary-description",
-            "div.jobs-details-top-card__main-details",
-            "section.top-card-layout__description",
+            "div.jobs-details-top-card",
+            "section.top-card-layout",
+            "div.job-details-jobs-unified-top-card",
+            "div.jobs-unified-top-card__content",
         ):
             block = soup.select_one(sel)
             if not block:
                 continue
-            blob = re.sub(r"\s+", " ", block.get_text(" ", strip=True).lower())
+            blob = re.sub(
+                r"\s+",
+                " ",
+                block.get_text(" ", strip=True).lower().replace("\u00a0", " "),
+            )
+            if not blob:
+                continue
             if "repost" in blob and re.search(
-                r"\d+\s*(?:sec|min|hr|hour|day|week)s?\s+ago", blob
+                r"\d+\s*(?:sec|second|seconds|min|mins?|minute|minutes|hr|hrs?|hour|hours|day|days|week|weeks)s?\s+ago",
+                blob,
             ):
                 return True
 
+    # 1) DOM-level hint: classes / ids / attributes containing 'repost'
+    if soup:
+        # iterate elements but bail early if we find explicit 'repost' markers
+        for el in soup.find_all(True):
+            # check classes
+            cls = el.get("class") or []
+            for c in cls:
+                try:
+                    if "repost" in c.replace("-", "").lower():
+                        return True
+                except Exception:
+                    continue
+            # check common attributes (id, aria-label, data-*, title, role, etc.)
+            for attr_val in el.attrs.values():
+                if isinstance(attr_val, str):
+                    if "repost" in attr_val.lower():
+                        return True
+                elif isinstance(attr_val, (list, tuple)):
+                    for v in attr_val:
+                        if isinstance(v, str) and "repost" in v.lower():
+                            return True
+
+    # 2) Explicit phrase patterns often used by LinkedIn UI:
+    #    "Reposted · 10 minutes ago", "Re-posted · 2 days ago", "Reposted by NAME"
+    if re.search(r'(?i)\bre-?posted\b[\s·\|\-:,]{0,8}\s*(?:by\b|[0-9])', low):
+        return True
+    if re.search(r'(?i)\bre-?posted\b', low) and re.search(r'(?i)\b(?:ago|just now|yesterday|\d+\s*(?:mins?|minutes?|hrs?|hours?|days?|weeks?))\b', low):
+        # reposted + time indicator somewhere in the page
+        return True
+
+    # 3) Proximity regex: 'repost' near time words within a short window (forward or backward)
+    prox_re = re.compile(
+        r'(?i)(?:\b(re-?post(?:ed|ing)?|repost)\b.{0,120}?\b(?:ago|just now|yesterday|\d+\s*(?:mins?|minutes?|hrs?|hours?|days?|weeks?))\b'
+        r'|'
+        r'\b(?:ago|just now|yesterday|\d+\s*(?:mins?|minutes?|hrs?|hours?|days?|weeks?))\b.{0,120}?\b(re-?post(?:ed|ing)?|repost)\b)',
+        re.S
+    )
+    if prox_re.search(low):
+        return True
+
+    # 4) Check time elements' nearby text (covers UI where repost badge sits beside timestamp)
+    if soup:
+        time_selectors = (
+            "time, span.jobs-unified-top-card__posted-date, span.posted-time-ago__text, "
+            "span.jobs-unified-top-card__subtitle-primary-grouping, "
+            "div.jobs-unified-top-card__primary-description"
+        )
+        for t in soup.select(time_selectors):
+            try:
+                # parent text and next/previous sibling texts
+                parent_text = (t.parent.get_text(" ", strip=True) or "").lower()
+                if "repost" in parent_text and re.search(
+                    r"\d+\s*(?:hour|minute|day|week)s?\s+ago", parent_text
+                ):
+                    return True
+                # Walk up a few ancestors (split text across wrappers)
+                el = t
+                for _ in range(5):
+                    if el is None:
+                        break
+                    anc = el.get_text(" ", strip=True).lower()
+                    if "repost" in anc and re.search(
+                        r"\d+\s*(?:hour|minute|day|week)s?\s+ago", anc
+                    ):
+                        return True
+                    el = el.parent
+
+                nxt = t.find_next_sibling()
+                if nxt and "repost" in (nxt.get_text(" ", strip=True) or "").lower():
+                    return True
+                prev = t.find_previous_sibling()
+                if prev and "repost" in (prev.get_text(" ", strip=True) or "").lower():
+                    return True
+            except Exception:
+                continue
+
+    # No strong indicator found
     return False
 
 
@@ -825,17 +927,18 @@ def _env_int(name, default=None):
     except Exception:
         return default
 
-def main():
-    urls_file = os.getenv("URLS_FILE", "config/urls.txt")
+def main(urls_file_override=None, max_pages_override=None):
+    urls_file = urls_file_override or os.getenv("URLS_FILE", "config/urls.txt")
     headless = _env_bool("CHROMEDRIVER_HEADLESS", True)
     li_at = os.getenv("LINKEDIN_LI_AT") or None
     email = os.getenv("LINKEDIN_EMAIL") or None
     password = os.getenv("LINKEDIN_PASSWORD") or None
-    max_pages = _env_int("MAX_PAGES", None)
+    max_pages = max_pages_override if max_pages_override is not None else _env_int("MAX_PAGES", None)
     resume_path = os.getenv("RESUME_PATH", "paarth_jain_resume.pdf")
     no_notify = _env_bool("NO_NOTIFY", False)
     high_pref_file = os.getenv("HIGH_PREFERENCE_COMPANIES_FILE", "config/high_preference_companies.txt")
     skip_comp_file = os.getenv("SKIP_COMPANIES_FILE", "config/skip_companies.txt")
+    gdrive_companies_url = os.getenv("GDRIVE_COMPANIES_URL", "").strip()
 
     headful = not headless
 
@@ -846,15 +949,8 @@ def main():
             print("[*] Obtained li_at via Selenium.")
         except Exception as e:
             print("[!] Failed to login and get li_at:", e)
-            # continue without li_at (guest API still works in many cases)
 
     session = make_requests_session(li_at)
-    try:
-        r = session.get("https://www.linkedin.com/feed/", timeout=REQUEST_TIMEOUT)
-        if r.status_code != 200:
-            print("[!] Warning: feed returned", r.status_code)
-    except Exception as e:
-        print("[!] Warning contacting LinkedIn:", e)
 
     # Build keywords from resume (either provided or default upload path)
     raw_text = ""
@@ -885,6 +981,13 @@ def main():
     print(f"[*] Built {len(keywords)} keywords from resume (sample): {', '.join(list(keywords)[:12])}")
     high_pref_companies = _load_company_list(high_pref_file)
     skip_companies = _load_company_list(skip_comp_file)
+
+    # GDrive overrides txt files if set
+    if gdrive_companies_url:
+        gdrive_high, gdrive_skip = _load_company_list_from_gdrive(gdrive_companies_url)
+        high_pref_companies = gdrive_high or high_pref_companies
+        skip_companies = gdrive_skip or skip_companies
+
     print(f"[*] Loaded company lists: high_pref={len(high_pref_companies)}, skip={len(skip_companies)}")
 
     # Read URLs from file (or fallback to single LINKEDIN_SEARCH)
