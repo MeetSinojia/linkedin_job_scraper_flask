@@ -6,6 +6,7 @@ Endpoints:
   GET  /                     → health check
   GET  /run-scraper          → triggers main scraper (urls.txt, MAX_PAGES)
   GET  /run-scraper-under10  → triggers under-10 scraper (urls_under10.txt, MAX_PAGES_UNDER10)
+  GET  /run-scraper-high-pref → triggers high preference scraper (urls.txt, MAX_PAGES_HIGH_PREF)
   GET  /status               → current scraper run state
   GET  /flush-db             → deletes all jobs from MongoDB
 """
@@ -131,6 +132,41 @@ def run_scraper_under10():
 
     Thread(target=background_job, daemon=True).start()
     return jsonify({"message": "under10 scraper triggered", "status": "running"}), 202
+
+
+@app.get("/run-scraper-high-pref")
+def run_scraper_high_pref():
+    logger.info("GET /run-scraper-high-pref - trigger high preference scraper")
+    urls_file = os.getenv("URLS_FILE", "config/urls.txt")
+    max_pages = _env_int("MAX_PAGES_HIGH_PREF", None)
+
+    with state_lock:
+        if scraper_state["running"]:
+            return jsonify({"message": "scraper already running"}), 409
+        scraper_state["running"] = True
+        scraper_state["last_run_at"] = datetime.utcnow().isoformat() + "Z"
+        scraper_state["last_status"] = "running"
+        scraper_state["last_error"] = None
+
+    def background_job():
+        try:
+            import main as scraper_main
+            logger.info(f"Running high preference scraper in background with urls_file={urls_file}, max_pages={max_pages}")
+            scraper_main.main(urls_file_override=urls_file, max_pages_override=max_pages, high_pref_only=True)
+            logger.info("Background high preference scraper completed successfully")
+            with state_lock:
+                scraper_state["last_status"] = "completed"
+        except Exception as e:
+            logger.error(f"Background high preference scraper error: {e}", exc_info=True)
+            with state_lock:
+                scraper_state["last_status"] = "error"
+                scraper_state["last_error"] = str(e)
+        finally:
+            with state_lock:
+                scraper_state["running"] = False
+
+    Thread(target=background_job, daemon=True).start()
+    return jsonify({"message": "high preference scraper triggered", "status": "running"}), 202
 
 
 @app.route("/flush-db", methods=["GET", "POST"])

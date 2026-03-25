@@ -906,7 +906,7 @@ def _env_int(name, default=None):
     except Exception:
         return default
 
-def main(urls_file_override=None, max_pages_override=None):
+def main(urls_file_override=None, max_pages_override=None, high_pref_only=False):
     urls_file = urls_file_override or os.getenv("URLS_FILE", "config/urls.txt")
     headless = _env_bool("CHROMEDRIVER_HEADLESS", True)
     li_at = os.getenv("LINKEDIN_LI_AT") or None
@@ -931,33 +931,37 @@ def main(urls_file_override=None, max_pages_override=None):
 
     session = make_requests_session(li_at)
 
-    # Build keywords from resume (either provided or default upload path)
-    raw_text = ""
-    if resume_path and os.path.exists(resume_path):
-        try:
+    # Build keywords from resume (only needed for relevance filtering, not high pref only mode)
+    keywords = set()
+    if not high_pref_only:
+        raw_text = ""
+        if resume_path and os.path.exists(resume_path):
             try:
-                import PyPDF2
-                with open(resume_path, "rb") as fh:
-                    reader = PyPDF2.PdfReader(fh)
-                    pages = []
-                    for pg in reader.pages:
-                        try:
-                            pages.append(pg.extract_text() or "")
-                        except Exception:
-                            continue
-                    raw_text = "\n".join(pages)
-            except Exception:
                 try:
+                    import PyPDF2
                     with open(resume_path, "rb") as fh:
-                        raw_text = fh.read().decode("utf-8", errors="ignore")
+                        reader = PyPDF2.PdfReader(fh)
+                        pages = []
+                        for pg in reader.pages:
+                            try:
+                                pages.append(pg.extract_text() or "")
+                            except Exception:
+                                continue
+                        raw_text = "\n".join(pages)
                 except Exception:
-                    raw_text = ""
-        except Exception:
-            raw_text = ""
+                    try:
+                        with open(resume_path, "rb") as fh:
+                            raw_text = fh.read().decode("utf-8", errors="ignore")
+                    except Exception:
+                        raw_text = ""
+            except Exception:
+                raw_text = ""
+        else:
+            print(f"[*] Resume not found at {resume_path}; proceeding with default keyword seeds.")
+        keywords = relevance_filter.build_keywords_from_resume_text(raw_text)
+        print(f"[*] Built {len(keywords)} keywords from resume (sample): {', '.join(list(keywords)[:12])}")
     else:
-        print(f"[*] Resume not found at {resume_path}; proceeding with default keyword seeds.")
-    keywords = relevance_filter.build_keywords_from_resume_text(raw_text)
-    print(f"[*] Built {len(keywords)} keywords from resume (sample): {', '.join(list(keywords)[:12])}")
+        print(f"[*] High preference only mode: skipping keyword building and relevance filtering")
     high_pref_companies = _load_company_list(high_pref_file)
     skip_companies = _load_company_list(skip_comp_file)
 
@@ -1022,6 +1026,13 @@ def main(urls_file_override=None, max_pages_override=None):
         company_name = job.get("company") or ""
         in_high = _company_matches(company_name, high_pref_companies)
         in_skip = _company_matches(company_name, skip_companies)
+
+        if high_pref_only:
+            # High preference only mode: only include high preference companies, no relevance filtering
+            if in_high and not in_skip:
+                job["is_high_preference"] = True
+                selected.append(job)
+            continue
 
         # High pref path is temporarily disabled per user request (commented out):
         # if in_high:
