@@ -1028,10 +1028,22 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         in_skip = _company_matches(company_name, skip_companies)
 
         if high_pref_only:
-            # High preference only mode: only include high preference companies, no relevance filtering
+            # High preference only mode: include high preference companies with role keyword check
             if in_high and not in_skip:
-                job["is_high_preference"] = True
-                selected.append(job)
+                # Re-fetch job page for role checking
+                html = ""
+                try:
+                    rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
+                    if rr.status_code == 200 and not looks_like_error_page(rr.text):
+                        html = rr.text
+                except Exception:
+                    html = ""
+
+                # Check role keywords (skip experience and other filters)
+                combined = " ".join(filter(None, [job.get("title") or "", relevance_filter.extract_description_text(html) or ""]))
+                if relevance_filter.ROLE_RE.search(combined):
+                    job["is_high_preference"] = True
+                    selected.append(job)
             continue
 
         # High pref path is temporarily disabled per user request (commented out):
