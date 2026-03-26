@@ -81,6 +81,37 @@ def _load_company_list(path):
         print(f"[!] Could not read company list '{path}': {e}")
     return items
 
+
+def _load_high_pref_companies(path):
+    """Load high preference companies from a 3-column file: name | category | expected_ctc."""
+    result = {}
+    if not path:
+        return result
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for ln in fh:
+                line = ln.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = [p.strip() for p in re.split(r"\s*\|\s*|\s*,\s*", line) if p.strip()]
+                company_name = parts[0] if parts else ""
+                if not company_name:
+                    continue
+                category = parts[1] if len(parts) > 1 else ""
+                expected_ctc = parts[2] if len(parts) > 2 else ""
+                norm_name = _norm_company(company_name)
+                result[norm_name] = {
+                    "company": company_name,
+                    "category": category,
+                    "expected_ctc": expected_ctc,
+                }
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[!] Could not read high preference company list '{path}': {e}")
+    return result
+
+
 def _extract_sheet_id(url: str) -> str:
     """Extract Google Sheets spreadsheet ID from any share/edit URL."""
     m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
@@ -140,10 +171,26 @@ def _company_matches(company_name, company_set):
     c = _norm_company(company_name)
     if not c:
         return False
-    for entry in company_set:
-        if entry and (entry in c or c in entry):
-            return True
+    if isinstance(company_set, dict):
+        for entry in company_set.keys():
+            if entry and (entry in c or c in entry):
+                return True
+    else:
+        for entry in company_set:
+            if entry and (entry in c or c in entry):
+                return True
     return False
+
+
+def _get_high_pref_details(company_name, high_pref_companies):
+    c = _norm_company(company_name)
+    if not c or not isinstance(high_pref_companies, dict):
+        return None
+    for key, details in high_pref_companies.items():
+        if key and (key in c or c in key):
+            return details
+    return None
+
 
 def make_requests_session(li_at=None):
     s = requests.Session()
@@ -741,9 +788,13 @@ def _build_aggregated_messages(new_jobs, max_items_per_message=20, max_chars=150
             safe_co = html.escape(company)
             safe_loc = html.escape(location)
             safe_link = html.escape(link, quote=True)
+            ctc_text = ""
+            if job.get("expected_ctc"):
+                ctc_text = f"   💰 Expected CTC: {html.escape(str(job.get('expected_ctc')))}\n"
             posted_line = f"   📅 Posted: {html.escape(date_posted)}\n" if date_posted else ""
             entry = (
                 f"{idx_global}) {tag_text}{safe_title} — {safe_co} — {safe_loc}\n"
+                f"{ctc_text}"
                 f"{posted_line}"
                 f'   <a href="{safe_link}">Apply</a>\n'
             )
@@ -1030,30 +1081,29 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         in_high = _company_matches(company_name, high_pref_companies)
         in_skip = _company_matches(company_name, skip_companies)
 
-        if high_pref_only:
-            # High preference only mode: include high preference companies with role/tech keyword check in title only
-            if in_high and not in_skip:
-                # Check role keywords OR tech keywords in title only (skip experience and other filters)
-                job_title = (job.get("title") or "").lower()
-                has_role_keyword = relevance_filter.ROLE_RE.search(job_title)
-                has_tech_keyword = any(tech_kw in job_title for tech_kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
-                
-                if has_role_keyword or has_tech_keyword:
-                    job["is_high_preference"] = True
-                    selected.append(job)
-            continue
-
-        # High pref path is temporarily disabled per user request (commented out):
-        # if in_high:
-        #     job["is_high_preference"] = True
-        #     selected.append(job)
-        #     continue
-
-        # Skip companies always applied
+        # Common skip first
         if in_skip:
             continue
 
-        # Re-fetch job page for relevance decision if needed.
+        if high_pref_only:
+            # High preference only mode: include high preference companies with role/tech keyword check in title only
+            if in_high:
+                job_title = (job.get("title") or "").lower()
+                has_role_keyword = relevance_filter.ROLE_RE.search(job_title)
+                has_tech_keyword = any(tech_kw in job_title for tech_kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
+                if has_role_keyword or has_tech_keyword:
+                    job["is_high_preference"] = True
+                    hp_details = _get_high_pref_details(company_name, high_pref_companies)
+                    if hp_details:
+                        job["high_pref_category"] = hp_details.get("category", "")
+                        job["expected_ctc"] = hp_details.get("expected_ctc", "")
+                    else:
+                        job["high_pref_category"] = ""
+                        job["expected_ctc"] = ""
+                    selected.append(job)
+            continue
+
+        # Regular mode with relevance filtering and mandatory title role/tech keyword
         html = ""
         try:
             rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
@@ -1064,10 +1114,22 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
 
         try:
             if relevance_filter.is_relevant_job(html, job.get("title") or "", keywords):
-                job["is_high_preference"] = False
-                job["is_reposted"] = bool(looks_like_reposted(html)) or bool(
-                    job.get("is_reposted")
-                )
+                # mark high-preference jobs for priority and additional fields
+                if in_high:
+                    job["is_high_preference"] = True
+                    hp_details = _get_high_pref_details(company_name, high_pref_companies)
+                    if hp_details:
+                        job["high_pref_category"] = hp_details.get("category", "")
+                        job["expected_ctc"] = hp_details.get("expected_ctc", "")
+                    else:
+                        job["high_pref_category"] = ""
+                        job["expected_ctc"] = ""
+                else:
+                    job["is_high_preference"] = False
+                    job["high_pref_category"] = ""
+                    job["expected_ctc"] = ""
+
+                job["is_reposted"] = bool(looks_like_reposted(html)) or bool(job.get("is_reposted"))
                 selected.append(job)
         except Exception:
             # On parser errors, keep default behavior conservative and skip.
