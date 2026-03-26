@@ -733,7 +733,7 @@ def _build_aggregated_messages(new_jobs, max_items_per_message=20, max_chars=150
             # Telegram legacy Markdown does not use ** for bold; use HTML for reliable formatting.
             tags = []
             if job.get("is_high_preference"):
-                tags.append("<b>[HIGH PREFERENCE]</b>")
+                tags.append("<b>[HIGH PREF]</b>")
             if job.get("is_reposted"):
                 tags.append("<b>[Reposted]</b>")
             tag_text = f"{' '.join(tags)} " if tags else ""
@@ -861,6 +861,9 @@ def push_jobs_to_db_and_telegram(jobs, send_notifications=True, max_items_per_me
     total_sent = 0
     if send_notifications and new_jobs:
         try:
+            # Sort jobs: high preference jobs first, then others
+            new_jobs.sort(key=lambda job: 0 if job.get("is_high_preference") else 1)
+            
             # build one-or-more aggregated messages
             messages = _build_aggregated_messages(new_jobs, max_items_per_message=max_items_per_message, max_chars=max_message_chars)
             if not messages:
@@ -1028,20 +1031,14 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         in_skip = _company_matches(company_name, skip_companies)
 
         if high_pref_only:
-            # High preference only mode: include high preference companies with role keyword check
+            # High preference only mode: include high preference companies with role/tech keyword check in title only
             if in_high and not in_skip:
-                # Re-fetch job page for role checking
-                html = ""
-                try:
-                    rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
-                    if rr.status_code == 200 and not looks_like_error_page(rr.text):
-                        html = rr.text
-                except Exception:
-                    html = ""
-
-                # Check role keywords (skip experience and other filters)
-                combined = " ".join(filter(None, [job.get("title") or "", relevance_filter.extract_description_text(html) or ""]))
-                if relevance_filter.ROLE_RE.search(combined):
+                # Check role keywords OR tech keywords in title only (skip experience and other filters)
+                job_title = (job.get("title") or "").lower()
+                has_role_keyword = relevance_filter.ROLE_RE.search(job_title)
+                has_tech_keyword = any(tech_kw in job_title for tech_kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
+                
+                if has_role_keyword or has_tech_keyword:
                     job["is_high_preference"] = True
                     selected.append(job)
             continue

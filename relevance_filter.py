@@ -125,10 +125,19 @@ def build_keywords_from_resume_text(text: str) -> Set[str]:
 def is_relevant_job(html_text: str, title: str, keywords: Set[str]) -> bool:
     """
     Decide if the given job (html_text + title) is relevant:
+      - MANDATORY: Title must contain role keywords OR tech keywords
       - Include if explicit numeric years <= 3 (0..3)
       - If numeric years required >3 => exclude
       - If no numeric mention => include if title/description match ROLE_RE and not EXCLUDE_RE
     """
+    # MANDATORY: Title must contain role keywords OR tech keywords
+    title_lower = (title or "").lower()
+    has_role_keyword = ROLE_RE.search(title_lower)
+    has_tech_keyword = any(tech_kw in title_lower for tech_kw in DEFAULT_TECH_KEYWORDS)
+    
+    if not (has_role_keyword or has_tech_keyword):
+        return False
+    
     combined = " ".join(filter(None, [title or "", extract_description_text(html_text) or ""]))
     # exclude data/ML roles first
     if EXCLUDE_RE.search(combined):
