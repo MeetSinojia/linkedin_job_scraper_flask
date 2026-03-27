@@ -18,7 +18,7 @@ import logging
 from threading import Thread, Lock
 from datetime import datetime
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, send_file
 
 # Setup logging to show in Render logs
 logging.basicConfig(
@@ -59,9 +59,8 @@ def _env_int(name, default=None):
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 @app.get("/")
-def health():
-    logger.info("GET / - health check")
-    return jsonify({"status": "ok", "service": "linkedin-job-scraper"}), 200
+def index():
+    return send_file("index.html")
 
 
 @app.get("/run-scraper")
@@ -201,6 +200,42 @@ def status():
         "service": "linkedin-job-scraper",
         "scraper": state,
     }), 200
+
+
+@app.route("/generate-resume", methods=["POST"])
+def generate_resume():
+    import tempfile
+    import subprocess
+    import shutil
+
+    latex_code = request.data.decode('utf-8')
+    if not latex_code:
+        return jsonify({"error": "No LaTeX code provided"}), 400
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tex_file = os.path.join(tmpdir, "resume.tex")
+        with open(tex_file, "w") as f:
+            f.write(latex_code)
+
+        try:
+            # Compile with pdflatex
+            result = subprocess.run(
+                ["pdflatex", "-output-directory", tmpdir, tex_file],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode != 0:
+                return jsonify({"error": "LaTeX compilation failed", "output": result.stdout + result.stderr}), 500
+
+            pdf_file = os.path.join(tmpdir, "resume.pdf")
+            if not os.path.exists(pdf_file):
+                return jsonify({"error": "PDF not generated"}), 500
+
+            return send_file(pdf_file, as_attachment=True, download_name="resume.pdf", mimetype="application/pdf")
+
+        except subprocess.TimeoutExpired:
+            return jsonify({"error": "LaTeX compilation timed out"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 
 # ── Entry point ──────────────────────────────────────────────────────────────

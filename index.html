@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meet Sinojia — Resume Builder</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0e14;
+    --surface: #141720;
+    --surface2: #1c2030;
+    --border: #2a2f42;
+    --border2: #353a52;
+    --text: #e8eaf2;
+    --muted: #7b82a0;
+    --subtle: #4a5068;
+    --accent: #4f8fff;
+    --accent-dim: #1e2f52;
+    --green: #3ecf8e;
+    --green-dim: #0f2d1f;
+    --mono: 'Courier New', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --radius: 8px;
+    --radius-sm: 5px;
+  }
+
+  html { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  body { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 48px 20px 80px; min-height: 100vh; }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 40px; max-width: 500px; }
+  .logo { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .logo-icon { width: 36px; height: 36px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; stroke: var(--muted); fill: none; stroke-width: 1.5; stroke-linecap: round; }
+  .logo-name { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+  h1 { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 10px; }
+  h1 span { color: var(--accent); }
+  .tagline { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* ── Card ── */
+  .card { width: 100%; max-width: 600px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px 28px 24px; }
+
+  /* ── Fields ── */
+  .field { margin-bottom: 20px; }
+  .field:last-of-type { margin-bottom: 0; }
+
+  .field-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .field-label { font-size: 12px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .field-count { font-size: 11px; color: var(--subtle); font-family: var(--mono); }
+
+  .field-hint { font-size: 12px; color: var(--subtle); margin-bottom: 7px; }
+
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea::placeholder { color: var(--subtle); }
+  textarea:focus { border-color: var(--border2); box-shadow: 0 0 0 3px rgba(79,143,255,0.08); }
+
+  /* ── Tags ── */
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; min-height: 26px; }
+  .tag {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 2px 9px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--surface2);
+    line-height: 1.6;
+    white-space: nowrap;
+    transition: border-color 0.1s;
+  }
+  .tag:hover { border-color: var(--border2); color: var(--text); }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+  /* ── Actions ── */
+  .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .btn-reset {
+    font-size: 13px; color: var(--subtle); background: none; border: none;
+    cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px;
+    transition: color 0.12s;
+  }
+  .btn-reset:hover { color: var(--muted); }
+
+  .btn-generate {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    font-size: 13px; font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity 0.12s, transform 0.08s;
+    letter-spacing: 0.01em;
+  }
+  .btn-generate:hover { opacity: 0.88; }
+  .btn-generate:active { transform: scale(0.98); }
+  .btn-generate svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+  /* ── Status Panel ── */
+  .status-panel {
+    width: 100%; max-width: 600px;
+    display: none;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 24px 28px;
+    text-align: center;
+  }
+  .status-panel.visible { display: block; }
+
+  .spinner {
+    width: 28px; height: 28px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .status-sub { font-size: 13px; color: var(--muted); line-height: 1.6; max-width: 380px; margin: 0 auto; }
+
+  .status-skills {
+    margin-top: 16px; padding: 14px 16px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    text-align: left; font-family: var(--mono); font-size: 11.5px;
+    color: var(--muted); line-height: 1.8;
+  }
+  .status-skills .key { color: var(--accent); }
+
+  .btn-back {
+    margin-top: 16px; font-size: 12px; color: var(--subtle);
+    background: none; border: none; cursor: pointer; text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .btn-back:hover { color: var(--muted); }
+
+  /* ── Footer ── */
+  .page-footer { margin-top: 32px; font-size: 11.5px; color: var(--subtle); text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 18 18"><rect x="2" y="2" width="14" height="14" rx="2"/><line x1="5" y1="7" x2="13" y2="7"/><line x1="5" y1="10" x2="13" y2="10"/><line x1="5" y1="13" x2="9" y2="13"/></svg>
+    </div>
+    <span class="logo-name">Resume Builder</span>
+  </div>
+  <h1>Customize Your <span>Skills Section</span></h1>
+  <p class="tagline">Enter comma-separated values for each category. Click Generate to compile your exact LaTeX resume as a downloadable PDF.</p>
+</header>
+
+<!-- Builder Card -->
+<div class="card" id="builder-card">
+  <div class="field">
+    <div class="field-head">
+      <span class="field-label">Languages</span>
+      <span class="field-count" id="lang-count">6 items</span>
+    </div>
+    <p class="field-hint">Programming languages to highlight</p>
+    <textarea id="lang" rows="2" spellcheck="false" placeholder="C++, Python, Golang…">C++, Python, Golang, Java, JavaScript, Dart</textarea>
+    <div class="tags" id="lang-tags"></div>
+  </div>
+
+  <div class="field">
+    <div class="field-head">
+      <span class="field-label">Frameworks</span>
+      <span class="field-count" id="fw-count">8 items</span>
+    </div>
+    <p class="field-hint">Frameworks, libraries, and cloud platforms</p>
+    <textarea id="fw" rows="2" spellcheck="false" placeholder="Gin, Flutter, React…">Gin, Flutter, React, Angular, Node.js, Spring Boot, .NET, AWS (RDS, S3)</textarea>
+    <div class="tags" id="fw-tags"></div>
+  </div>
+
+  <div class="field">
+    <div class="field-head">
+      <span class="field-label">Databases &amp; Tools</span>
+      <span class="field-count" id="db-count">5 items</span>
+    </div>
+    <p class="field-hint">Databases, dev tools, and environments</p>
+    <textarea id="db" rows="2" spellcheck="false" placeholder="SQL, MySQL, Git…">SQL, MySQL, Git, Unix/Linux, Postman</textarea>
+    <div class="tags" id="db-tags"></div>
+  </div>
+
+  <div class="field">
+    <div class="field-head">
+      <span class="field-label">Concepts</span>
+      <span class="field-count" id="conc-count">7 items</span>
+    </div>
+    <p class="field-hint">CS fundamentals and methodologies</p>
+    <textarea id="conc" rows="2" spellcheck="false" placeholder="Data Structures &amp; Algorithms, REST APIs…">Data Structures &amp; Algorithms, REST APIs, System Design, OOP, OS, DBMS, Distributed Systems</textarea>
+    <div class="tags" id="conc-tags"></div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="actions">
+    <button class="btn-reset" onclick="resetDefaults()">Reset to defaults</button>
+    <button class="btn-generate" onclick="generatePDF()">
+      <svg viewBox="0 0 14 14"><path d="M2 7h10M7 2l5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Generate Resume PDF
+    </button>
+  </div>
+</div>
+
+<!-- Status Panel -->
+<div class="status-panel" id="status-panel">
+  <div class="spinner"></div>
+  <div class="status-title">Generating your resume…</div>
+  <div class="status-sub">Compiling LaTeX to PDF. The download will start automatically.</div>
+  <div class="status-skills" id="status-skills"></div>
+  <button class="btn-back" onclick="goBack()">← Edit skills again</button>
+</div>
+
+<p class="page-footer">Only the Technical Skills section is modified · All other content and formatting stays identical</p>
+
+<script>const LATEX_TEMPLATE = `%-------------------------
+% Resume in LaTeX
+% Author: Meet Sinojia
+% Based on Jake's Resume template
+%-------------------------
+
+\\documentclass[letterpaper,11pt]{article}
+
+\\usepackage{latexsym}
+\\usepackage[empty]{fullpage}
+\\usepackage{titlesec}
+\\usepackage{marvosym}
+\\usepackage[usenames,dvipsnames]{color}
+\\usepackage{verbatim}
+\\usepackage{enumitem}
+\\usepackage[hidelinks]{hyperref}
+\\usepackage{fancyhdr}
+\\usepackage[english]{babel}
+\\usepackage{tabularx}
+\\usepackage{fontawesome5}
+\\input{glyphtounicode}
+
+\\pagestyle{fancy}
+\\fancyhf{}
+\\fancyfoot{}
+\\renewcommand{\\headrulewidth}{0pt}
+\\renewcommand{\\footrulewidth}{0pt}
+
+% Adjust margins
+\\addtolength{\\oddsidemargin}{-0.75in}
+\\addtolength{\\evensidemargin}{-0.75in}
+\\addtolength{\\textwidth}{1.5in}
+\\addtolength{\\topmargin}{-.5in}
+\\addtolength{\\textheight}{1.0in}
+
+\\urlstyle{same}
+
+\\raggedbottom
+\\raggedright
+\\setlength{\\tabcolsep}{0in}
+
+% Section formatting
+\\titleformat{\\section}{
+  \\vspace{-3pt}\\scshape\\raggedright\\large
+}{}{0em}{}[\\color{black}\\titlerule \\vspace{-4pt}]
+
+\\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+
+\\newcommand{\\resumeItem}[1]{
+  \\item\\small{
+    {#1 \\vspace{-2pt}}
+  }
+}
+
+\\newcommand{\\resumeSubheading}[4]{
+  \\vspace{-2pt}\\item
+    \\begin{tabular*}{0.97\\textwidth}[t]{l@{\\extracolsep{\\fill}}r}
+      \\textbf{#1} & #2 \\\\
+      \\textit{\\small#3} & \\textit{\\small #4} \\\\
+    \\end{tabular*}\\vspace{-6pt}
+}
+
+\\newcommand{\\resumeProjectHeading}[2]{
+    \\item
+    \\begin{tabular*}{0.97\\textwidth}{l@{\\extracolsep{\\fill}}r}
+      \\small#1 & #2 \\\\
+    \\end{tabular*}\\vspace{-6pt}
+}
+
+\\newcommand{\\resumeSubItem}[1]{\\resumeItem{#1}\\vspace{-3pt}}
+
+\\renewcommand\\labelitemii{$\\vcenter{\\hbox{\\tiny$\\bullet$}}$}
+
+\\newcommand{\\resumeSubHeadingListStart}{\\begin{itemize}[leftmargin=0.12in, label={}]}
+\\newcommand{\\resumeSubHeadingListEnd}{\\end{itemize}}
+\\newcommand{\\resumeItemListStart}{\\begin{itemize}[leftmargin=0.18in]}
+\\newcommand{\\resumeItemListEnd}{\\end{itemize}\\vspace{-4pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\\begin{document}
+%----------HEADING----------
+\\begin{center}
+{\\Huge \\textbf{Meet Sinojia}}\\\\[6pt]
+
+\\small
+\\faMapMarker\\ Pune, Maharashtra, IN \\quad
+\\faEnvelope\\ \\href{sinojiameet321@gmail.com}{sinojiameet321@gmail.com} \\quad
+\\faPhone\\ +91-9426377084 \\quad
+\\faGlobe\\ \\href{https://its-meet.vercel.app/}{Portfolio}
+
+\\vspace{4pt}
+
+\\faLinkedin\\ \\href{https://linkedin.com/in/meet-sinojia-453595203}{linkedin.com/in/meet-sinojia-453595203}
+\\quad
+\\faGithub\\ \\href{https://github.com/MeetSinojia}{github.com/MeetSinojia}
+\\quad
+\\faCode\\ \\href{https://leetcode.com/Meet_Sinojia}{leetcode.com/Meet\\_Sinojia}
+
+\\end{center}
+
+\\end{center}
+%-----------EXPERIENCE-----------
+\\section{Experience}
+
+\\resumeSubHeadingListStart
+
+  \\resumeSubheading
+    {Software Engineer}{Feb 2024 -- Present}
+    {UBS}{Pune, IN}
+    \\resumeItemListStart
+    \\resumeItem{Improved Data API performance by implementing \\textbf{pagination and rate limiting}, reducing average query response time from \\textbf{10s to 2s}.}
+      \\resumeItem{Optimized large-scale Data Quality Check (DQC) pipelines processing \\textbf{100GB+ of data per month} using Python, NumPy, and Pandas, reducing processing time by \\textbf{10\\%}.}
+      \\resumeItem{Integrated backend APIs with React-based internal dashboards, improving data accessibility and workflow efficiency for internal users.}
+    \\resumeItem{Developed API integrations for file-based data exchange, improving scalability of internal data workflows.}
+      \\resumeItem{Enforced \\textbf{role-based and user-specific access control} using JWT authentication, strengthening API security and authorization workflows.}
+      \\resumeItem{Built file import connectors and automated Python workflows supporting the UBS–Credit Suisse merger data integration in NeoXam.}
+      \\resumeItem{\\textbf{Tech Stack:} Python, SQL, Java, NumPy, Pandas, .NET, Angular, NeoXam, Autosys}
+    \\resumeItemListEnd
+
+  \\resumeSubheading
+    {Prism Developer}{Dec 2022 -- Aug 2023}
+    {Samsung R\\&D India}{Remote}
+    \\resumeItemListStart
+      \\resumeItem{Engineered a UWB-based human angle detection system achieving \\textbf{86\\% accuracy} using MUSIC and ESPRIT algorithms.}
+      \\resumeItem{Processed and analyzed \\textbf{12,000+ UWB images} to improve model accuracy and data-driven outcomes.}
+      \\resumeItem{\\textbf{Tech Stack:} Python, Signal Processing, MUSIC, ESPRIT}
+    \\resumeItemListEnd
+
+\\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\\section{Projects}
+
+\\resumeSubHeadingListStart
+\\resumeProjectHeading
+{\\textbf{Mr. Mechanic} $|$ \\emph{Flutter, Golang, Gin, MySQL, AWS}}
+{\\href{https://github.com/MeetSinojia/mr_mechanics_demo}{\\underline{Demo}}}
+\\resumeItemListStart
+  \\resumeItem{Built a full-stack vendor management system supporting billing and inventory operations.}
+  \\resumeItem{Optimized delivery routing using \\textbf{Dijkstra’s algorithm} with real-time location data.}
+  \\resumeItem{Designed and built\\textbf{REST APIs} using Golang (Gin) with \\textbf{JWT authentication} and OTP verification via MSG91.}
+  \\resumeItem{Implemented scheduled tasks and customized notifications using \\textbf{Firebase} to automate system updates and alerts.}
+  \\resumeItem{Developed reporting and data visualization features for large transactional datasets.}
+  \\resumeItem{Deployed backend services on \\textbf{Render} with \\textbf{AWS RDS and S3} for scalable data and image storage.}
+  \\resumeItem{Published the mobile application on the \\textbf{Google Play Store}, handling production builds and releases.}
+\\resumeItemListEnd
+\\resumeProjectHeading
+{\\textbf{EchoShop} $|$ \\emph{React, Node.js, Firebase, Stripe}}
+{\\href{https://github.com/MeetSinojia/EchoShop}{\\underline{GitHub}}}
+\\resumeItemListStart
+  \\resumeItem{Built a full-stack e-commerce platform with secure Stripe payment integration.}
+  \\resumeItem{Optimized delivery routing using \\textbf{Dijkstra’s algorithm} with real-time location data.}
+\\resumeItemListEnd
+
+\\resumeSubHeadingListEnd
+
+%-----------TECHNICAL SKILLS-----------
+\\section{Technical Skills}
+
+\\begin{itemize}[leftmargin=0.15in, label={}]
+  \\small{\\item{
+    \\textbf{Languages:}{ {{LANGUAGES}}} \\\\[2pt]
+    \\textbf{Frameworks:}{ {{FRAMEWORKS}}} \\\\[2pt]
+    \\textbf{Databases \\& Tools:}{ {{DBTOOLS}}} \\\\[2pt]
+    \\textbf{Concepts:}{ {{CONCEPTS}}}
+  }}
+\\end{itemize}
+
+%-----------ACHIEVEMENTS-----------
+\\section{Achievements}
+\\resumeSubHeadingListStart
+  \\resumeSubItem{
+    \\textbf{Competitive Programming:} LeetCode Knight (\\textbf{Rating: 1930+}, Top 5\\%), CodeChef \\textbf{3$\\star$} (Rating: 1606, Top 10\\%), Codeforces Pupil (Rating: 1284).
+  }
+  \\resumeSubItem{
+    \\textbf{Binance Ideathon 2022:} Runner-up for building a blockchain-based solution under the \\textbf{Blockchain for Good} initiative.
+  }
+\\resumeSubHeadingListEnd
+
+%-----------EDUCATION-----------
+\\section{Education}
+
+\\resumeSubHeadingListStart
+
+  \\resumeSubheading
+    {Vellore Institute of Technology}{Tamil Nadu, India}
+    {Bachelor of Technology in Computer Science}{Sept 2020 -- Mar 2024}
+    \\resumeItemListStart
+      \\resumeItem{CGPA: \\textbf{8.66 / 10}}
+    \\resumeItemListEnd
+
+\\resumeSubHeadingListEnd
+
+%-------------------------------------------
+\\end{document}
+`;
+const DEFAULTS = {
+  lang:  'C++, Python, Golang, Java, JavaScript, Dart',
+  fw:    'Gin, Flutter, React, Angular, Node.js, Spring Boot, .NET, AWS (RDS, S3)',
+  db:    'SQL, MySQL, Git, Unix/Linux, Postman',
+  conc:  'Data Structures &amp; Algorithms, REST APIs, System Design, OOP, OS, DBMS, Distributed Systems'
+};
+
+function decode(s) {
+  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+function encode(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderTags(inputId, tagsId, countId) {
+  const raw = document.getElementById(inputId).value;
+  const items = decode(raw).split(',').map(s => s.trim()).filter(Boolean);
+  document.getElementById(countId).textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
+  document.getElementById(tagsId).innerHTML = items
+    .map(t => `<span class="tag">${encode(t)}</span>`)
+    .join('');
+}
+
+function initField(inputId, tagsId, countId) {
+  renderTags(inputId, tagsId, countId);
+  document.getElementById(inputId).addEventListener('input', () => renderTags(inputId, tagsId, countId));
+}
+
+function resetDefaults() {
+  for (const [id, val] of Object.entries(DEFAULTS)) {
+    document.getElementById(id).value = val;
+  }
+  renderTags('lang','lang-tags','lang-count');
+  renderTags('fw','fw-tags','fw-count');
+  renderTags('db','db-tags','db-count');
+  renderTags('conc','conc-tags','conc-count');
+  goBack();
+}
+
+function goBack() {
+  document.getElementById('builder-card').style.display = 'block';
+  document.getElementById('status-panel').classList.remove('visible');
+}
+
+function generatePDF() {
+  const data = {
+    languages:  decode(document.getElementById('lang').value.trim()),
+    frameworks: decode(document.getElementById('fw').value.trim()),
+    dbtools:    decode(document.getElementById('db').value.trim()),
+    concepts:   decode(document.getElementById('conc').value.trim())
+  };
+
+  const empty = Object.values(data).every(v => !v);
+  if (empty) { alert('Please fill in at least one skill field.'); return; }
+
+  // Build LaTeX
+  let latex = LATEX_TEMPLATE
+    .replace('{{LANGUAGES}}', data.languages)
+    .replace('{{FRAMEWORKS}}', data.frameworks)
+    .replace('{{DBTOOLS}}', data.dbtools)
+    .replace('{{CONCEPTS}}', data.concepts);
+
+  // Show status panel
+  document.getElementById('builder-card').style.display = 'none';
+  document.getElementById('status-panel').classList.add('visible');
+
+  // Show submitted values
+  document.getElementById('status-skills').innerHTML = [
+    ['Languages',       data.languages],
+    ['Frameworks',      data.frameworks],
+    ['DB & Tools',  encode(data.dbtools)],
+    ['Concepts',        data.concepts]
+  ].map(([k,v]) => `<div><span class="key">${k}:</span> ${encode(v)}</div>`).join('');
+
+  // Send to backend
+  fetch('https://linkedin-job-scraper-flask.onrender.com/generate-resume', {
+    method: 'POST',
+    body: latex
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Failed to generate PDF');
+    }
+    return response.blob();
+  })
+  .then(blob => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'resume.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    goBack();
+  })
+  .catch(error => {
+    alert('Error generating PDF: ' + error.message);
+    goBack();
+  });
+}
+
+// Init all fields
+initField('lang','lang-tags','lang-count');
+initField('fw','fw-tags','fw-count');
+initField('db','db-tags','db-count');
+initField('conc','conc-tags','conc-count');
+</script>
+</body>
+</html>
