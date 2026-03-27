@@ -20,6 +20,7 @@ from datetime import datetime
 import tempfile
 import subprocess
 from flask import Flask, jsonify, request, send_file
+from flask_cors import CORS
 
 # Setup logging to show in Render logs
 logging.basicConfig(
@@ -37,6 +38,7 @@ except Exception:
 
 app = Flask(__name__)
 logger.info("Flask app initialized")
+CORS(app)  # ← add this line
 
 scraper_state = {
     "running": False,
