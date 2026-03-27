@@ -261,13 +261,13 @@ def generate_resume():
                 }), 500
 
             return send_file(pdf_file, as_attachment=True,
-                             download_name="resume.pdf", mimetype="application/pdf")
+                             download_name="Meet_Sinojia_Resume.pdf", mimetype="application/pdf")
 
         except subprocess.TimeoutExpired:
             return jsonify({"error": "LaTeX compilation timed out"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-            
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
