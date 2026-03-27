@@ -221,10 +221,17 @@ def generate_resume():
         try:
             for _ in range(2):
                 result = subprocess.run(
-                    ["pdflatex", "-no-shell-escape", "-output-directory", tmpdir, tex_file],
+                    [
+                        "pdflatex",
+                        "-interaction=nonstopmode",
+                        "-halt-on-error",
+                        "-no-shell-escape",
+                        "-output-directory", tmpdir,
+                        tex_file
+                    ],
                     capture_output=True,
                     text=True,
-                    timeout=30
+                    timeout=120
                 )
 
             if result.returncode != 0:
@@ -234,7 +241,6 @@ def generate_resume():
                     "stderr": result.stderr,
                     "files": os.listdir(tmpdir)
                 }), 500
-
             # Debug output (VERY IMPORTANT for Render)
             if result.returncode != 0:
                 return jsonify({
@@ -268,5 +274,5 @@ def generate_resume():
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
+    port = int(os.getenv("PORT", 8000))
     app.run(host="0.0.0.0", port=port)
