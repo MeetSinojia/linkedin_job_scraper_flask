@@ -207,42 +207,45 @@ def status():
 
 @app.route("/generate-resume", methods=["POST"])
 def generate_resume():
-    latex_code = request.data.decode('utf-8')
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON data provided"}), 400
 
-    if not latex_code:
-        return jsonify({"error": "No LaTeX code provided"}), 400
+    languages  = data.get('languages', '')
+    frameworks = data.get('frameworks', '')
+    dbtools    = data.get('dbtools', '')
+    concepts   = data.get('concepts', '')
+
+    # Read the template from disk — Python handles backslashes correctly
+    template_path = os.path.join(os.path.dirname(__file__), "resume_template.tex")
+    try:
+        with open(template_path, "r", encoding="utf-8") as f:
+            latex = f.read()
+    except FileNotFoundError:
+        return jsonify({"error": "resume_template.tex not found on server"}), 500
+
+    # Plain string replace — no escaping issues
+    latex = latex.replace('{{LANGUAGES}}',  languages)
+    latex = latex.replace('{{FRAMEWORKS}}', frameworks)
+    latex = latex.replace('{{DBTOOLS}}',    dbtools)
+    latex = latex.replace('{{CONCEPTS}}',   concepts)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_file = os.path.join(tmpdir, "resume.tex")
+        pdf_file = os.path.join(tmpdir, "resume.pdf")
 
-        with open(tex_file, "w") as f:
-            f.write(latex_code)
+        with open(tex_file, "w", encoding="utf-8") as f:
+            f.write(latex)
 
         try:
             for _ in range(2):
                 result = subprocess.run(
-                    [
-                        "pdflatex",
-                        "-interaction=nonstopmode",
-                        "-halt-on-error",
-                        "-no-shell-escape",
-                        "-output-directory", tmpdir,
-                        tex_file
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=120
+                    ["pdflatex", "-interaction=nonstopmode", "-halt-on-error",
+                     "-no-shell-escape", "-output-directory", tmpdir, tex_file],
+                    capture_output=True, text=True, timeout=120
                 )
 
-            if result.returncode != 0:
-                return jsonify({
-                    "error": "LaTeX compilation failed",
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "files": os.listdir(tmpdir)
-                }), 500
-            # Debug output (VERY IMPORTANT for Render)
-            if result.returncode != 0:
+            if result.returncode != 0 or not os.path.exists(pdf_file):
                 return jsonify({
                     "error": "LaTeX compilation failed",
                     "stdout": result.stdout,
@@ -250,27 +253,13 @@ def generate_resume():
                     "files": os.listdir(tmpdir)
                 }), 500
 
-            pdf_file = os.path.join(tmpdir, "resume.pdf")
-
-            if not os.path.exists(pdf_file):
-                return jsonify({
-                    "error": "PDF not generated",
-                    "files": os.listdir(tmpdir)
-                }), 500
-
-            return send_file(
-                pdf_file,
-                as_attachment=True,
-                download_name="resume.pdf",
-                mimetype="application/pdf"
-            )
+            return send_file(pdf_file, as_attachment=True,
+                             download_name="resume.pdf", mimetype="application/pdf")
 
         except subprocess.TimeoutExpired:
             return jsonify({"error": "LaTeX compilation timed out"}), 500
-
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":

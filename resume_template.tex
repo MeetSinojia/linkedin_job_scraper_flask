@@ -1,0 +1,199 @@
+%-------------------------
+% Resume in LaTeX
+% Author: Meet Sinojia
+% Based on Jake's Resume template
+%-------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.75in}
+\addtolength{\evensidemargin}{-0.75in}
+\addtolength{\textwidth}{1.5in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Section formatting
+\titleformat{\section}{
+  \vspace{-3pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-4pt}]
+
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-6pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-3pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.12in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=0.18in]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-4pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+%----------HEADING----------
+\begin{center}
+{\Huge \textbf{Meet Sinojia}}\\[6pt]
+
+\small
+\faMapMarker\ Pune, Maharashtra, IN \quad
+\faEnvelope\ \href{sinojiameet321@gmail.com}{sinojiameet321@gmail.com} \quad
+\faPhone\ +91-9426377084 \quad
+\faGlobe\ \href{https://its-meet.vercel.app/}{Portfolio}
+
+\vspace{4pt}
+
+\faLinkedin\ \href{https://linkedin.com/in/meet-sinojia-453595203}{linkedin.com/in/meet-sinojia-453595203}
+\quad
+\faGithub\ \href{https://github.com/MeetSinojia}{github.com/MeetSinojia}
+\quad
+\faCode\ \href{https://leetcode.com/Meet_Sinojia}{leetcode.com/Meet\_Sinojia}
+
+\end{center}
+
+\end{center}
+%-----------EXPERIENCE-----------
+\section{Experience}
+
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Software Engineer}{Feb 2024 -- Present}
+    {UBS}{Pune, IN}
+    \resumeItemListStart
+    \resumeItem{Improved Data API performance by implementing \textbf{pagination and rate limiting}, reducing average query response time from \textbf{10s to 2s}.}
+      \resumeItem{Optimized large-scale Data Quality Check (DQC) pipelines processing \textbf{100GB+ of data per month} using Python, NumPy, and Pandas, reducing processing time by \textbf{10\%}.}
+      \resumeItem{Integrated backend APIs with React-based internal dashboards, improving data accessibility and workflow efficiency for internal users.}
+    \resumeItem{Developed API integrations for file-based data exchange, improving scalability of internal data workflows.}
+      \resumeItem{Enforced \textbf{role-based and user-specific access control} using JWT authentication, strengthening API security and authorization workflows.}
+      \resumeItem{Built file import connectors and automated Python workflows supporting the UBS–Credit Suisse merger data integration in NeoXam.}
+      \resumeItem{\textbf{Tech Stack:} Python, SQL, Java, NumPy, Pandas, .NET, Angular, NeoXam, Autosys}
+    \resumeItemListEnd
+
+  \resumeSubheading
+    {Prism Developer}{Dec 2022 -- Aug 2023}
+    {Samsung R\&D India}{Remote}
+    \resumeItemListStart
+      \resumeItem{Engineered a UWB-based human angle detection system achieving \textbf{86\% accuracy} using MUSIC and ESPRIT algorithms.}
+      \resumeItem{Processed and analyzed \textbf{12,000+ UWB images} to improve model accuracy and data-driven outcomes.}
+      \resumeItem{\textbf{Tech Stack:} Python, Signal Processing, MUSIC, ESPRIT}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+
+\resumeSubHeadingListStart
+\resumeProjectHeading
+{\textbf{Mr. Mechanic} $|$ \emph{Flutter, Golang, Gin, MySQL, AWS}}
+{\href{https://github.com/MeetSinojia/mr_mechanics_demo}{\underline{Demo}}}
+\resumeItemListStart
+  \resumeItem{Built a full-stack vendor management system supporting billing and inventory operations.}
+  \resumeItem{Designed and built\textbf{REST APIs} using Golang (Gin) with \textbf{JWT authentication} and OTP verification via MSG91.}
+  \resumeItem{Implemented scheduled tasks and customized notifications using \textbf{Firebase} to automate system updates and alerts.}
+  \resumeItem{Developed reporting and data visualization features for large transactional datasets.}
+  \resumeItem{Deployed backend services on \textbf{Render} with \textbf{AWS RDS and S3} for scalable data and image storage.}
+  \resumeItem{Published the mobile application on the \textbf{Google Play Store}, handling production builds and releases.}
+\resumeItemListEnd
+\resumeProjectHeading
+{\textbf{EchoShop} $|$ \emph{React, Node.js, Firebase, Stripe}}
+{\href{https://github.com/MeetSinojia/EchoShop}{\underline{GitHub}}}
+\resumeItemListStart
+  \resumeItem{Built a full-stack e-commerce platform with secure Stripe payment integration.}
+  \resumeItem{Optimized delivery routing using \textbf{Dijkstra’s algorithm} with real-time location data.}
+\resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-----------TECHNICAL SKILLS-----------
+\section{Technical Skills}
+
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \small{\item{
+    \textbf{Languages:}{ C++, Python, Golang, Java, JavaScript, Dart} \\[2pt]
+    \textbf{Frameworks:}{ Gin, Flutter, React, Angular, Node.js, Spring Boot, .NET, AWS (RDS, S3)} \\[2pt]
+    \textbf{Databases \& Tools:}{ SQL, MySQL, Git, Unix/Linux, Postman} \\[2pt]
+    \textbf{Concepts:}{ Data Structures \& Algorithms, REST APIs, System Design, OOP, OS, DBMS, Distributed Systems}
+  }}
+\end{itemize}
+
+%-----------ACHIEVEMENTS-----------
+\section{Achievements}
+\resumeSubHeadingListStart
+  \resumeSubItem{
+    \textbf{Competitive Programming:} LeetCode Knight (\textbf{Rating: 1930+}, Top 5\%), CodeChef \textbf{3$\star$} (Rating: 1606, Top 10\%), Codeforces Pupil (Rating: 1284).
+  }
+  \resumeSubItem{
+    \textbf{Binance Ideathon 2022:} Runner-up for building a blockchain-based solution under the \textbf{Blockchain for Good} initiative.
+  }
+\resumeSubHeadingListEnd
+
+%-----------EDUCATION-----------
+\section{Education}
+
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Vellore Institute of Technology}{Tamil Nadu, India}
+    {Bachelor of Technology in Computer Science}{Sept 2020 -- Mar 2024}
+    \resumeItemListStart
+      \resumeItem{CGPA: \textbf{8.66 / 10}}
+    \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%-------------------------------------------
+\end{document}
