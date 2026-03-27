@@ -967,7 +967,7 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
     email = os.getenv("LINKEDIN_EMAIL") or None
     password = os.getenv("LINKEDIN_PASSWORD") or None
     max_pages = max_pages_override if max_pages_override is not None else _env_int("MAX_PAGES", None)
-    resume_path = os.getenv("RESUME_PATH", "paarth_jain_resume.pdf")
+    resume_path = os.getenv("RESUME_PATH", "")
     no_notify = _env_bool("NO_NOTIFY", False)
     high_pref_file = os.getenv("HIGH_PREFERENCE_COMPANIES_FILE", "config/high_preference_companies.txt")
     skip_comp_file = os.getenv("SKIP_COMPANIES_FILE", "config/skip_companies.txt")
