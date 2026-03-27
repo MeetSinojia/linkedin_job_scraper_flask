@@ -217,12 +217,21 @@ def generate_resume():
             f.write(latex_code)
 
         try:
-            result = subprocess.run(
-                ["pdflatex", "-no-shell-escape", "-output-directory", tmpdir, tex_file],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            for _ in range(2):
+                result = subprocess.run(
+                    ["pdflatex", "-no-shell-escape", "-output-directory", tmpdir, tex_file],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+            if result.returncode != 0:
+                return jsonify({
+                    "error": "LaTeX compilation failed",
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "files": os.listdir(tmpdir)
+                }), 500
 
             # Debug output (VERY IMPORTANT for Render)
             if result.returncode != 0:
