@@ -216,7 +216,15 @@ def generate_resume():
     dbtools    = data.get('dbtools', '')
     concepts   = data.get('concepts', '')
 
-    # Read the template from disk — Python handles backslashes correctly
+    def escape_latex(text):
+        return (text
+            .replace('&',  r'\&')
+            .replace('%',  r'\%')
+            .replace('$',  r'\$')
+            .replace('#',  r'\#')
+            .replace('_',  r'\_'))
+
+    # Read the template from disk
     template_path = os.path.join(os.path.dirname(__file__), "resume_template.tex")
     try:
         with open(template_path, "r", encoding="utf-8") as f:
@@ -224,11 +232,10 @@ def generate_resume():
     except FileNotFoundError:
         return jsonify({"error": "resume_template.tex not found on server"}), 500
 
-    # Plain string replace — no escaping issues
-    latex = latex.replace('{{LANGUAGES}}',  languages)
-    latex = latex.replace('{{FRAMEWORKS}}', frameworks)
-    latex = latex.replace('{{DBTOOLS}}',    dbtools)
-    latex = latex.replace('{{CONCEPTS}}',   concepts)
+    latex = latex.replace('{{LANGUAGES}}',  escape_latex(languages))
+    latex = latex.replace('{{FRAMEWORKS}}', escape_latex(frameworks))
+    latex = latex.replace('{{DBTOOLS}}',    escape_latex(dbtools))
+    latex = latex.replace('{{CONCEPTS}}',   escape_latex(concepts))
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_file = os.path.join(tmpdir, "resume.tex")
@@ -260,7 +267,7 @@ def generate_resume():
             return jsonify({"error": "LaTeX compilation timed out"}), 500
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-
+            
 # ── Entry point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
