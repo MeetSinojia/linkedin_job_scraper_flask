@@ -17,7 +17,8 @@ import traceback
 import logging
 from threading import Thread, Lock
 from datetime import datetime
-
+import tempfile
+import subprocess
 from flask import Flask, jsonify, request, send_file
 
 # Setup logging to show in Render logs
@@ -204,36 +205,52 @@ def status():
 
 @app.route("/generate-resume", methods=["POST"])
 def generate_resume():
-    import tempfile
-    import subprocess
-    import shutil
-
     latex_code = request.data.decode('utf-8')
+
     if not latex_code:
         return jsonify({"error": "No LaTeX code provided"}), 400
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_file = os.path.join(tmpdir, "resume.tex")
+
         with open(tex_file, "w") as f:
             f.write(latex_code)
 
         try:
-            # Compile with pdflatex
             result = subprocess.run(
-                ["pdflatex", "-output-directory", tmpdir, tex_file],
-                capture_output=True, text=True, timeout=30
+                ["pdflatex", "-no-shell-escape", "-output-directory", tmpdir, tex_file],
+                capture_output=True,
+                text=True,
+                timeout=30
             )
+
+            # Debug output (VERY IMPORTANT for Render)
             if result.returncode != 0:
-                return jsonify({"error": "LaTeX compilation failed", "output": result.stdout + result.stderr}), 500
+                return jsonify({
+                    "error": "LaTeX compilation failed",
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "files": os.listdir(tmpdir)
+                }), 500
 
             pdf_file = os.path.join(tmpdir, "resume.pdf")
-            if not os.path.exists(pdf_file):
-                return jsonify({"error": "PDF not generated"}), 500
 
-            return send_file(pdf_file, as_attachment=True, download_name="resume.pdf", mimetype="application/pdf")
+            if not os.path.exists(pdf_file):
+                return jsonify({
+                    "error": "PDF not generated",
+                    "files": os.listdir(tmpdir)
+                }), 500
+
+            return send_file(
+                pdf_file,
+                as_attachment=True,
+                download_name="resume.pdf",
+                mimetype="application/pdf"
+            )
 
         except subprocess.TimeoutExpired:
             return jsonify({"error": "LaTeX compilation timed out"}), 500
+
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
