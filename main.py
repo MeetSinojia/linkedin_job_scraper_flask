@@ -985,6 +985,16 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
 
     session = make_requests_session(li_at)
 
+    # Test if li_at is valid by checking a logged-in page
+    try:
+        test_resp = session.get("https://www.linkedin.com/feed/", timeout=10, allow_redirects=True)
+        if test_resp.status_code == 200 and "Sign in" not in test_resp.text and test_resp.url == "https://www.linkedin.com/feed/":
+            print("[*] li_at appears valid - logged in successfully")
+        else:
+            print("[!] li_at may be invalid or expired - redirected to login or status code:", test_resp.status_code)
+    except Exception as e:
+        print(f"[!] Test login check failed: {e}")
+
     # Build keywords from resume (only needed for relevance filtering, not high pref only mode)
     keywords = set()
     if not high_pref_only:
