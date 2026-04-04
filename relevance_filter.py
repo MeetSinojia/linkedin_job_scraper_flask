@@ -32,6 +32,38 @@ EXCLUDE_PATTERNS = [
 ]
 EXCLUDE_RE = re.compile("|".join(EXCLUDE_PATTERNS), re.I)
 
+# Title-level exclusions: whole-word single terms to reject regardless of scraper mode
+TITLE_EXCLUDE_WORDS = [
+    r"\bworks\b",        # but NOT "works" fragments — matched as full word
+    r"\bappears\b",
+    r"\bsupport\b",
+    r"\btest\b",
+    r"\bsenior\b",
+    r"\bstaff\b",
+    r"\baccountant\b",
+    r"\bintern\b",
+    r"\bmanager\b",
+]
+
+# Title-level exclusions: exact full phrases
+TITLE_EXCLUDE_PHRASES = [
+    r"\bservicenow developer\b",
+    r"\bcad engineer\b",
+    r"\bquality analyst\b",
+    r"\blead software engineer\b",
+    r"\bzoho developer\b",
+    r"\bbusiness analyst\b",
+    r"\bcustomer service\b",
+    r"\bdesign engineer\b",
+    r"\bsite engineer\b",
+    r"\bsap developer\b",
+    r"\bdeployment engineer\b",
+]
+
+TITLE_EXCLUDE_RE = re.compile(
+    "|".join(TITLE_EXCLUDE_WORDS + TITLE_EXCLUDE_PHRASES), re.I
+)
+
 # experience pattern: captures either '1-3 years', '2 years', '2+ years', '0 years', '3 yrs'
 EXP_RANGE_RE = re.compile(r"(\d+)\s*[-to]{0,3}\s*(\d+)\s*(?:\+)?\s*(?:years|yrs|year)?", re.I)
 EXP_SINGLE_RE = re.compile(r"(\d+)\s*(?:\+)?\s*(?:years|yrs|year)\b", re.I)
@@ -134,10 +166,14 @@ def is_relevant_job(html_text: str, title: str, keywords: Set[str]) -> bool:
     title_lower = (title or "").lower()
     has_role_keyword = ROLE_RE.search(title_lower)
     has_tech_keyword = any(tech_kw in title_lower for tech_kw in DEFAULT_TECH_KEYWORDS)
-    
+
     if not (has_role_keyword or has_tech_keyword):
         return False
-    
+
+    # Title-level hard exclusions (whole-word single terms + exact phrases)
+    if TITLE_EXCLUDE_RE.search(title_lower):
+        return False
+
     combined = " ".join(filter(None, [title or "", extract_description_text(html_text) or ""]))
     # exclude data/ML roles first
     if EXCLUDE_RE.search(combined):
