@@ -232,7 +232,7 @@ def selenium_login_and_get_li_at(email, password, headful=True):
             WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.TAG_NAME, "header")))
         except Exception:
             pass
-        rand_sleep(1.2, 2.0)
+        rand_sleep(2.5, 4.5)
         li_at = None
         for c in driver.get_cookies():
             if c.get("name") == "li_at":
@@ -610,8 +610,8 @@ def scrape(search_url, session, li_at=None, max_pages=None, keywords=None, headf
     start = 0
     seen = set()
     page_count = 0
-    page_workers = 2
-    page_batch_size = 2
+    page_workers = 1
+    page_batch_size = 1
     guest_count = _env_int("GUEST_COUNT", PAGE_SIZE)  # how many results to ask for
     guest_step = _env_int("GUEST_START_STEP", guest_count)  # how much to increment `start`
 
@@ -739,7 +739,7 @@ def scrape(search_url, session, li_at=None, max_pages=None, keywords=None, headf
 
         page_count += len(starts)
         start += guest_step * len(starts)
-        rand_sleep(0.8, 1.4)
+        rand_sleep(2.5, 4.5)
     return all_jobs
 
 def save_output(jobs):
@@ -1067,7 +1067,7 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
             jobs = scrape(u, session, li_at=li_at, max_pages=max_pages, keywords=None, headful=headful)
             print(f"[*] Collected {len(jobs)} jobs from this search.")
             combined_jobs.extend(jobs)
-            rand_sleep(0.8, 1.6)
+            rand_sleep(2.5, 4.5)
         except Exception as e:
             print("[!] Error while scraping this search URL:", e)
             continue
