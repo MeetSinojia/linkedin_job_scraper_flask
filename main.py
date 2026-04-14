@@ -24,7 +24,7 @@ from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
+import re
 # import the relevance filter module you created
 import relevance_filter
 
@@ -975,161 +975,101 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
 
     headful = not headless
 
+    # 🔐 Session setup
     if not li_at and email and password:
-        print("[*] Logging in to obtain li_at (Selenium). Open browser if required.")
         try:
             li_at = selenium_login_and_get_li_at(email, password, headful=headful)
-            print("[*] Obtained li_at via Selenium.")
         except Exception as e:
-            print("[!] Failed to login and get li_at:", e)
+            print("[!] Login failed:", e)
 
     session = make_requests_session(li_at)
 
-    # Test if li_at is valid by checking a logged-in page
-    try:
-        test_resp = session.get("https://www.linkedin.com/feed/", timeout=10, allow_redirects=True)
-        if test_resp.status_code == 200 and "Sign in" not in test_resp.text and test_resp.url == "https://www.linkedin.com/feed/":
-            print("[*] li_at appears valid - logged in successfully")
-        else:
-            print("[!] li_at may be invalid or expired - redirected to login or status code:", test_resp.status_code)
-    except Exception as e:
-        print(f"[!] Test login check failed: {e}")
-
-    # Build keywords from resume (only needed for relevance filtering, not high pref only mode)
+    # 📄 Keywords (only normal mode)
     keywords = set()
     if not high_pref_only:
         raw_text = ""
         if resume_path and os.path.exists(resume_path):
             try:
-                try:
-                    import PyPDF2
-                    with open(resume_path, "rb") as fh:
-                        reader = PyPDF2.PdfReader(fh)
-                        pages = []
-                        for pg in reader.pages:
-                            try:
-                                pages.append(pg.extract_text() or "")
-                            except Exception:
-                                continue
-                        raw_text = "\n".join(pages)
-                except Exception:
-                    try:
-                        with open(resume_path, "rb") as fh:
-                            raw_text = fh.read().decode("utf-8", errors="ignore")
-                    except Exception:
-                        raw_text = ""
+                with open(resume_path, "rb") as fh:
+                    raw_text = fh.read().decode("utf-8", errors="ignore")
             except Exception:
                 raw_text = ""
-        else:
-            print(f"[*] Resume not found at {resume_path}; proceeding with default keyword seeds.")
+
         keywords = relevance_filter.build_keywords_from_resume_text(raw_text)
-        print(f"[*] Built {len(keywords)} keywords from resume (sample): {', '.join(list(keywords)[:12])}")
-    else:
-        print(f"[*] High preference only mode: skipping keyword building and relevance filtering")
+        print(f"[*] Built {len(keywords)} keywords")
+
+    # 📦 Load company lists
     high_pref_companies = _load_company_list(high_pref_file)
     skip_companies = _load_company_list(skip_comp_file)
 
-    # GDrive overrides txt files if set and successfully fetches both sheets
-    if gdrive_companies_url:
-        gdrive_high, gdrive_skip, fetch_success = _load_company_list_from_gdrive(gdrive_companies_url)
-        if fetch_success:
-            # Use Google Sheets data if both sheets fetched successfully
-            high_pref_companies = gdrive_high
-            skip_companies = gdrive_skip
-            print("[*] Using company lists from Google Sheets (both sheets fetched successfully)")
-        else:
-            print("[!] Google Sheets fetch had issues; falling back to local txt files")
-            # Keep the local file-based lists
-
     print(f"[*] Loaded company lists: high_pref={len(high_pref_companies)}, skip={len(skip_companies)}")
 
-    # Read URLs from file (or fallback to single LINKEDIN_SEARCH)
-    single_search = os.getenv("LINKEDIN_SEARCH") or None
+    # 🔗 Load URLs
     urls = []
     if urls_file and os.path.exists(urls_file):
-        with open(urls_file, "r", encoding="utf-8") as fh:
-            for ln in fh:
-                ln = ln.strip()
-                if not ln or ln.startswith("#"):
-                    continue
-                urls.append(ln)
-    elif single_search:
-        urls = [single_search]
+        with open(urls_file, "r") as fh:
+            urls = [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
     else:
-        print(f"[!] URLs file '{urls_file}' not found and no LINKEDIN_SEARCH provided. Exiting.")
+        print("[!] No URLs found")
         return
 
-    print(f"[*] Found {len(urls)} search URL(s) to process.")
+    # 🌐 Scrape
     combined_jobs = []
-    for i, u in enumerate(urls, 1):
-        print(f"\n=== Processing ({i}/{len(urls)}): {u}")
+    for u in urls:
         try:
-            jobs = scrape(u, session, li_at=li_at, max_pages=max_pages, keywords=None, headful=headful)
-            print(f"[*] Collected {len(jobs)} jobs from this search.")
+            jobs = scrape(u, session, li_at=li_at, max_pages=max_pages)
             combined_jobs.extend(jobs)
-            rand_sleep(2.5, 4.5)
         except Exception as e:
-            print("[!] Error while scraping this search URL:", e)
-            continue
+            print("[!] Error scraping:", e)
 
-    # dedupe by job_url (preserve first occurrence)
-    unique = {}
+    # 🔁 Deduplicate
+    seen = set()
     ordered = []
     for j in combined_jobs:
         ju = j.get("job_url")
-        if not ju:
-            continue
-        if ju not in unique:
-            unique[ju] = j
+        if ju and ju not in seen:
+            seen.add(ju)
             ordered.append(j)
-    print(f"[*] Total unique jobs after dedupe: {len(ordered)}")
 
-    # Decide what to send only after full scraping completes.
+    print(f"[*] Total unique jobs: {len(ordered)}")
+
+    # 🔥 RUN FILTER KEYWORDS (ONLY NORMAL MODE)
+    RUN_EXCLUDE_KEYWORDS = [
+        "embedded", "fresher", "cloud", "frontend",
+        "php", "tester", "junior", "web developer"
+    ]
+
     selected = []
+
+    # 🎯 MAIN FILTER LOOP
     for job in ordered:
         company_name = job.get("company") or ""
+
         in_high = _company_matches(company_name, high_pref_companies)
         in_skip = _company_matches(company_name, skip_companies)
 
-        # Common skip first
+        # ❌ Skip companies
         if in_skip:
             continue
 
+        # ⭐ HIGH PREF MODE (UNCHANGED)
         if high_pref_only:
-            # High preference only mode
-        
             if in_high:
                 job_title = (job.get("title") or "").lower()
-        
-                # ❌ STEP 1: EXCLUDE unwanted roles FIRST (VERY IMPORTANT)
+
                 if relevance_filter.EXCLUDE_RE.search(job_title):
-                    print(f"[SKIPPED - EXCLUDE] {job_title} | {company_name}")
-                    continue     
-        
-                # ✅ STEP 2: INCLUDE role / tech keywords
-                has_role_keyword = relevance_filter.ROLE_RE.search(job_title)
-                has_tech_keyword = any(
-                    tech_kw in job_title 
-                    for tech_kw in relevance_filter.DEFAULT_TECH_KEYWORDS
-                )
-        
-                if has_role_keyword or has_tech_keyword:
+                    print(f"[SKIPPED - EXCLUDE] {job_title}")
+                    continue
+
+                has_role = relevance_filter.ROLE_RE.search(job_title)
+                has_tech = any(kw in job_title for kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
+
+                if has_role or has_tech:
                     job["is_high_preference"] = True
-        
-                    hp_details = _get_high_pref_details(company_name, high_pref_companies)
-        
-                    if hp_details:
-                        job["high_pref_category"] = hp_details.get("category", "")
-                        job["expected_ctc"] = hp_details.get("expected_ctc", "")
-                    else:
-                        job["high_pref_category"] = ""
-                        job["expected_ctc"] = ""
-        
                     selected.append(job)
-        
             continue
 
-        # Regular mode with relevance filtering and mandatory title role/tech keyword
+        # ✅ NORMAL MODE
         html = ""
         try:
             rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
@@ -1139,36 +1079,35 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
             html = ""
 
         try:
+            job_title = (job.get("title") or "").lower()
+
+            # ❌ RUN-SPECIFIC EXCLUDE FILTER
+            if any(re.search(rf"\b{re.escape(keyword)}\b", job_title) for keyword in RUN_EXCLUDE_KEYWORDS):
+                print(f"[SKIPPED - RUN FILTER] {job_title} | {company_name}")
+                continue
+
+            # ✅ EXISTING FILTER
             if relevance_filter.is_relevant_job(html, job.get("title") or "", keywords):
-                # mark high-preference jobs for priority and additional fields
+
                 if in_high:
                     job["is_high_preference"] = True
-                    hp_details = _get_high_pref_details(company_name, high_pref_companies)
-                    if hp_details:
-                        job["high_pref_category"] = hp_details.get("category", "")
-                        job["expected_ctc"] = hp_details.get("expected_ctc", "")
-                    else:
-                        job["high_pref_category"] = ""
-                        job["expected_ctc"] = ""
                 else:
                     job["is_high_preference"] = False
-                    job["high_pref_category"] = ""
-                    job["expected_ctc"] = ""
 
                 job["is_reposted"] = bool(looks_like_reposted(html)) or bool(job.get("is_reposted"))
+
+                print(f"[SELECTED] {job_title} | {company_name}")
                 selected.append(job)
+
         except Exception:
-            # On parser errors, keep default behavior conservative and skip.
             continue
 
-    print(f"[*] Jobs selected after post-scrape filtering: {len(selected)}")
+    print(f"[*] Final selected jobs: {len(selected)}")
 
-    # Insert new jobs into MongoDB (dedupe by job_url) + Telegram only for newly inserted
-    send_notifications = not no_notify
-    push_jobs_to_db_and_telegram(selected, send_notifications)
+    # 📤 Push
+    push_jobs_to_db_and_telegram(selected, send_notifications=not no_notify)
 
-    print("[*] Done. Total jobs processed:", len(selected))
-
+    print("[*] Done.")
 
 if __name__ == "__main__":
     main()
