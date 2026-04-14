@@ -17,19 +17,56 @@ DEFAULT_TECH_KEYWORDS = {
 }
 
 ROLE_KEYWORDS = [
-    r"\bsoftware engineer\b", r"\bsoftware developer\b", r"\bsde\b", r"\bsde-?\d\b",
-    r"\bsde ?1\b", r"\bsde ?2\b", r"\bsde ?3\b", r"\bassociate developer\b", r"\bdeveloper\b",
-    r"\bengineer\b", r"\bsoftware\b", r"\bapplications engineer\b", r"\bapplication developer\b",
-    r"\bsoftware engineer i\b", r"\bsoftware engineer ii\b", r"\bsenior software engineer\b",
-    r"\bassociate software engineer\b", r"\banalyst\b",
+    # Core SDE roles
+    r"\bsoftware engineer\b", r"\bsoftware developer\b",
+    r"\bsde\b", r"\bsde-?\d\b",
+    r"\bsde ?1\b", r"\bsde ?2\b", r"\bsde ?3\b",
+
+    # General roles
+    r"\bdeveloper\b", r"\bengineer\b", r"\bsoftware\b",
+    r"\bassociate developer\b", r"\bassociate software engineer\b",
+
+    # Specific titles
+    r"\bapplications engineer\b", r"\bapplication developer\b",
+    r"\bsoftware engineer i\b", r"\bsoftware engineer ii\b",
+    r"\bsenior software engineer\b",
+
+    # DevOps + Backend infra roles
+    r"\bdevops\b", r"\bdevops engineer\b",
+    r"\bsite reliability engineer\b", r"\bsre\b",
+    r"\bplatform engineer\b",
+    r"\bcloud engineer\b",
+
+    # Optional (keep if you want)
+    r"\banalyst\b",
 ]
+
 ROLE_RE = re.compile("|".join(ROLE_KEYWORDS), re.I)
 
 EXCLUDE_PATTERNS = [
-    r"\bdata engineer\b", r"\bdata scientist\b", r"\bmachine learning\b", r"\bml engineer\b",
-    r"\bdata scientist\b", r"\bdata analyst\b", r"\bdata engineering\b", r"\bQA\b", r"\bautomation\b",
-    r"\btest\b", r"\bprincipal\b", r"\barchitect\b"
+    # Data roles
+    r"\bdata engineer\b", r"\bdata scientist\b",
+    r"\bmachine learning\b", r"\bml engineer\b",
+    r"\bdata analyst\b", r"\bdata engineering\b",
+
+    # Testing / QA
+    r"\bqa\b", r"\bquality assurance\b",
+    r"\bautomation\b", r"\btest engineer\b", r"\btesting\b",
+
+    # Senior unwanted roles
+    r"\bprincipal\b", r"\barchitect\b", r"\bstaff engineer\b",
+
+    # Non-dev roles
+    r"\bproduct manager\b", r"\bproject manager\b",
+    r"\bbusiness analyst\b", r"\bconsultant\b",
+
+    # Support / non-core
+    r"\bsupport\b", r"\bcustomer\b",
+
+    # Interns (optional)
+    r"\bintern\b",
 ]
+
 EXCLUDE_RE = re.compile("|".join(EXCLUDE_PATTERNS), re.I)
 
 # Title-level exclusions: whole-word single terms to reject regardless of scraper mode
