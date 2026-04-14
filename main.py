@@ -1096,21 +1096,36 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
             continue
 
         if high_pref_only:
-            # High preference only mode: include high preference companies with role/tech keyword check in title only
+            # High preference only mode
+        
             if in_high:
                 job_title = (job.get("title") or "").lower()
+        
+                # ❌ STEP 1: EXCLUDE unwanted roles FIRST (VERY IMPORTANT)
+                if relevance_filter.EXCLUDE_RE.search(job_title):
+                    continue
+        
+                # ✅ STEP 2: INCLUDE role / tech keywords
                 has_role_keyword = relevance_filter.ROLE_RE.search(job_title)
-                has_tech_keyword = any(tech_kw in job_title for tech_kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
+                has_tech_keyword = any(
+                    tech_kw in job_title 
+                    for tech_kw in relevance_filter.DEFAULT_TECH_KEYWORDS
+                )
+        
                 if has_role_keyword or has_tech_keyword:
                     job["is_high_preference"] = True
+        
                     hp_details = _get_high_pref_details(company_name, high_pref_companies)
+        
                     if hp_details:
                         job["high_pref_category"] = hp_details.get("category", "")
                         job["expected_ctc"] = hp_details.get("expected_ctc", "")
                     else:
                         job["high_pref_category"] = ""
                         job["expected_ctc"] = ""
+        
                     selected.append(job)
+        
             continue
 
         # Regular mode with relevance filtering and mandatory title role/tech keyword
