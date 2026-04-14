@@ -1103,7 +1103,8 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         
                 # ❌ STEP 1: EXCLUDE unwanted roles FIRST (VERY IMPORTANT)
                 if relevance_filter.EXCLUDE_RE.search(job_title):
-                    continue
+                    print(f"[SKIPPED - EXCLUDE] {job_title} | {company_name}")
+                    continue     
         
                 # ✅ STEP 2: INCLUDE role / tech keywords
                 has_role_keyword = relevance_filter.ROLE_RE.search(job_title)
