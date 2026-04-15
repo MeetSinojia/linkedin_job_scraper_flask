@@ -1066,21 +1066,17 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         if high_pref_only:
             if in_high:
                 job_title = (job.get("title") or "").lower()
-
+        
+                # ❌ EXCLUDE ONLY FILTER
                 if relevance_filter.EXCLUDE_RE.search(job_title):
                     print(f"[HIGH PREF SKIPPED - EXCLUDE] {job_title} | {company_name}")
                     high_pref_skipped += 1
                     continue
-
-                has_role = relevance_filter.ROLE_RE.search(job_title)
-                has_tech = any(kw in job_title for kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
-
-                if has_role or has_tech:
-                    print(f"[SELECTED - HIGH PREF] {job_title} | {company_name}")
-                    selected.append(job)
-                else:
-                    print(f"[HIGH PREF SKIPPED - NO MATCH] {job_title} | {company_name}")
-                    high_pref_skipped += 1
+        
+                # ✅ SELECT DIRECTLY (NO OTHER FILTERS)
+                print(f"[SELECTED - HIGH PREF] {job_title} | {company_name}")
+                selected.append(job)
+        
             continue
 
         # ✅ NORMAL MODE
