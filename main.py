@@ -973,12 +973,10 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
     skip_comp_file = os.getenv("SKIP_COMPANIES_FILE", "config/skip_companies.txt")
     gdrive_companies_url = os.getenv("GDRIVE_COMPANIES_URL", "").strip()
 
-    headful = not headless
-
-    # 🔐 Session setup
+    # 🔐 Session
     if not li_at and email and password:
         try:
-            li_at = selenium_login_and_get_li_at(email, password, headful=headful)
+            li_at = selenium_login_and_get_li_at(email, password, headful=not headless)
         except Exception as e:
             print("[!] Login failed:", e)
 
@@ -994,17 +992,23 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
                     raw_text = fh.read().decode("utf-8", errors="ignore")
             except Exception:
                 raw_text = ""
-
         keywords = relevance_filter.build_keywords_from_resume_text(raw_text)
-        print(f"[*] Built {len(keywords)} keywords")
 
     # 📦 Load company lists
     high_pref_companies = _load_company_list(high_pref_file)
     skip_companies = _load_company_list(skip_comp_file)
 
+    # ✅ Override with GDrive
+    if gdrive_companies_url:
+        g_high, g_skip, success = _load_company_list_from_gdrive(gdrive_companies_url)
+        if success:
+            high_pref_companies = g_high
+            skip_companies = g_skip
+            print("[*] Using GDrive company lists")
+
     print(f"[*] Loaded company lists: high_pref={len(high_pref_companies)}, skip={len(skip_companies)}")
 
-    # 🔗 Load URLs
+    # 🔗 URLs
     urls = []
     if urls_file and os.path.exists(urls_file):
         with open(urls_file, "r") as fh:
@@ -1033,40 +1037,50 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
 
     print(f"[*] Total unique jobs: {len(ordered)}")
 
-    # 🔥 RUN FILTER KEYWORDS (ONLY NORMAL MODE)
+    # 🔥 RUN FILTER
     RUN_EXCLUDE_KEYWORDS = [
         "embedded", "fresher", "cloud", "frontend",
         "php", "tester", "junior", "web developer"
     ]
 
     selected = []
+    high_pref_skipped = 0
 
-    # 🎯 MAIN FILTER LOOP
     for job in ordered:
         company_name = job.get("company") or ""
 
         in_high = _company_matches(company_name, high_pref_companies)
         in_skip = _company_matches(company_name, skip_companies)
 
-        # ❌ Skip companies
+        # ✅ ALWAYS SET FLAG
+        job["is_high_preference"] = bool(in_high)
+
+        # ❌ Skip company
         if in_skip:
+            if in_high:
+                print(f"[HIGH PREF SKIPPED - IN SKIP LIST] {job.get('title')} | {company_name}")
+                high_pref_skipped += 1
             continue
 
-        # ⭐ HIGH PREF MODE (UNCHANGED)
+        # ⭐ HIGH PREF MODE
         if high_pref_only:
             if in_high:
                 job_title = (job.get("title") or "").lower()
 
                 if relevance_filter.EXCLUDE_RE.search(job_title):
-                    print(f"[SKIPPED - EXCLUDE] {job_title}")
+                    print(f"[HIGH PREF SKIPPED - EXCLUDE] {job_title} | {company_name}")
+                    high_pref_skipped += 1
                     continue
 
                 has_role = relevance_filter.ROLE_RE.search(job_title)
                 has_tech = any(kw in job_title for kw in relevance_filter.DEFAULT_TECH_KEYWORDS)
 
                 if has_role or has_tech:
-                    job["is_high_preference"] = True
+                    print(f"[SELECTED - HIGH PREF] {job_title} | {company_name}")
                     selected.append(job)
+                else:
+                    print(f"[HIGH PREF SKIPPED - NO MATCH] {job_title} | {company_name}")
+                    high_pref_skipped += 1
             continue
 
         # ✅ NORMAL MODE
@@ -1081,28 +1095,33 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         try:
             job_title = (job.get("title") or "").lower()
 
-            # ❌ RUN-SPECIFIC EXCLUDE FILTER
+            # ❌ RUN FILTER
             if any(re.search(rf"\b{re.escape(keyword)}\b", job_title) for keyword in RUN_EXCLUDE_KEYWORDS):
-                print(f"[SKIPPED - RUN FILTER] {job_title} | {company_name}")
+                if in_high:
+                    print(f"[HIGH PREF SKIPPED - RUN FILTER] {job_title} | {company_name}")
+                    high_pref_skipped += 1
+                else:
+                    print(f"[SKIPPED - RUN FILTER] {job_title} | {company_name}")
                 continue
 
-            # ✅ EXISTING FILTER
+            # ✅ RELEVANCE FILTER
             if relevance_filter.is_relevant_job(html, job.get("title") or "", keywords):
-
-                if in_high:
-                    job["is_high_preference"] = True
-                else:
-                    job["is_high_preference"] = False
 
                 job["is_reposted"] = bool(looks_like_reposted(html)) or bool(job.get("is_reposted"))
 
                 print(f"[SELECTED] {job_title} | {company_name}")
                 selected.append(job)
 
+            else:
+                if in_high:
+                    print(f"[HIGH PREF SKIPPED - RELEVANCE FAIL] {job_title} | {company_name}")
+                    high_pref_skipped += 1
+
         except Exception:
             continue
 
     print(f"[*] Final selected jobs: {len(selected)}")
+    print(f"[HIGH PREF SKIPPED COUNT]: {high_pref_skipped}")
 
     # 📤 Push
     push_jobs_to_db_and_telegram(selected, send_notifications=not no_notify)
