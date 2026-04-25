@@ -44,26 +44,70 @@ ROLE_KEYWORDS = [
 ROLE_RE = re.compile("|".join(ROLE_KEYWORDS), re.I)
 
 EXCLUDE_PATTERNS = [
-    # Data roles
-    r"\bdata engineer\b", r"\bdata scientist\b",
-    r"\bmachine learning\b", r"\bml engineer\b",
-    r"\bdata analyst\b", r"\bdata engineering\b",
+    # -------------------------
+    # Data / ML roles
+    # -------------------------
+    r"\bdata engineer\b",
+    r"\bdata scientist\b",
+    r"\bmachine learning\b",
+    r"\bml engineer\b",
+    r"\bdata analyst\b",
+    r"\bdata engineering\b",
 
-    # Testing / QA
-    r"\bqa\b", r"\bquality assurance\b",
-    r"\bautomation\b", r"\btest engineer\b", r"\btesting\b",
+    # -------------------------
+    # QA / Testing roles (specific only)
+    # -------------------------
+    r"\bqa\b",
+    r"\bquality assurance\b",
+    r"\btest engineer\b",
+    r"\bautomation engineer\b",
+    r"\bsdet\b",
+    r"\bsdet1\b",
 
-    # Senior unwanted roles
-    r"\bprincipal\b", r"\barchitect\b", r"\bstaff engineer\b",
-
+    # -------------------------
     # Non-dev roles
-    r"\bproduct manager\b", r"\bproject manager\b",
-    r"\bbusiness analyst\b", r"\bconsultant\b",
+    # -------------------------
+    r"\bproduct manager\b",
+    r"\bproject manager\b",
+    r"\bbusiness analyst\b",
+    r"\bproduct analyst\b",
+    r"\bconsultant\b",
+    r"\baccount executive\b",
+    r"\btalent acquisition coordinator\b",
+    r"\bhuman resource\b",
+    r"\boperations associate\b",
+    r"\bsocial media\b",
 
+    # -------------------------
     # Support / non-core
-    r"\bsupport\b", r"\bcustomer\b",
+    # -------------------------
+    r"\bsupport engineer\b",
+    r"\bcustomer support\b",
 
+    # -------------------------
+    # Senior / leadership (STRICT phrases only)
+    # -------------------------
+    r"\bprincipal engineer\b",
+    r"\barchitect\b",
+    r"\bstaff engineer\b",
+    r"\blead software engineer\b",
+    r"\bsenior software engineer\b",
+
+    # -------------------------
+    # Tech stacks you want to avoid
+    # -------------------------
+    r"\bphp developer\b",
+    r"\blaravel developer\b",
+
+    # -------------------------
+    # Very specific unwanted roles
+    # -------------------------
+    r"\bapplied scientist\b",
+    r"\bzeta global - programmatic associate\b",
+
+    # -------------------------
     # Interns (optional)
+    # -------------------------
     r"\bintern\b",
 ]
 
