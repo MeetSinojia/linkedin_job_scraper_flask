@@ -25,6 +25,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import re
+from ai_filter import evaluate_job_ai
+from ai_batch_filter import evaluate_jobs_batch_ai
 # import the relevance filter module you created
 import relevance_filter
 
@@ -63,6 +65,56 @@ def rand_sleep(a=0.6, b=1.2):
 
 def _norm_company(name):
     return re.sub(r"\s+", " ", (name or "").strip().lower())
+
+def run_ai_batch_filter(selected_jobs, batch_size=5):
+    """
+    Apply AI filtering ONLY on high preference jobs in batches.
+    """
+
+    high_pref_jobs = [j for j in selected_jobs if j.get("is_high_preference")]
+    non_high_pref_jobs = [j for j in selected_jobs if not j.get("is_high_preference")]
+
+    print(f"[AI] Total high-pref jobs: {len(high_pref_jobs)}")
+
+    if not high_pref_jobs:
+        return selected_jobs
+
+    final_high_pref = []
+
+    # 🔥 Batch processing
+    for i in range(0, len(high_pref_jobs), batch_size):
+        batch = high_pref_jobs[i:i + batch_size]
+
+        print(f"\n[AI] Processing batch {i//batch_size + 1} ({len(batch)} jobs)")
+
+        results = evaluate_jobs_batch_ai(batch)
+
+        if not results:
+            print("[AI] No results returned, skipping batch")
+            continue
+
+        for res in results:
+            try:
+                idx = res.get("index")
+                score = int(res.get("score", 0))
+
+                if idx is None or idx >= len(batch):
+                    continue
+
+                job = batch[idx]
+
+                if score >= 65:
+                    print(f"[AI PASS] {job.get('title')} | Score: {score}")
+                    final_high_pref.append(job)
+                else:
+                    print(f"[AI FAIL] {job.get('title')} | Score: {score}")
+
+            except Exception as e:
+                print("[AI ERROR - RESULT PARSE]", e)
+
+    print(f"[AI] Final high-pref after AI: {len(final_high_pref)}")
+
+    return non_high_pref_jobs + final_high_pref
 
 def _load_company_list(path):
     items = set()
@@ -1087,7 +1139,7 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
                 html = rr.text
         except Exception:
             html = ""
-
+        job["html"] = html
         try:
             job_title = (job.get("title") or "").lower()
 
@@ -1116,9 +1168,13 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         except Exception:
             continue
 
-    print(f"[*] Final selected jobs: {len(selected)}")
+    print(f"[*] Final selected jobs BEFORE AI: {len(selected)}")
     print(f"[HIGH PREF SKIPPED COUNT]: {high_pref_skipped}")
 
+    # 🔥 AI BATCH FILTER (ONLY ADDITION)
+    selected = run_ai_batch_filter(selected, batch_size=5)
+
+    print(f"[*] Final selected jobs AFTER AI: {len(selected)}")
     # 📤 Push
     push_jobs_to_db_and_telegram(selected, send_notifications=not no_notify)
 
