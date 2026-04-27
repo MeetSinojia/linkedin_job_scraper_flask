@@ -1118,33 +1118,39 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         if high_pref_only:
             if in_high:
                 job_title = (job.get("title") or "").lower()
-        
+
                 # ❌ EXCLUDE ONLY FILTER
                 if relevance_filter.EXCLUDE_RE.search(job_title):
                     print(f"[HIGH PREF SKIPPED - EXCLUDE] {job_title} | {company_name}")
                     high_pref_skipped += 1
                     continue
-        
-                # ✅ SELECT DIRECTLY (NO OTHER FILTERS)
+
+                # 🔥 Fetch HTML so AI filter can read the job description
+                html_content = ""
+                try:
+                    rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
+                    if rr.status_code == 200 and not looks_like_error_page(rr.text):
+                        html_content = rr.text
+                except Exception:
+                    html_content = ""
+                job["html"] = html_content
+
+                # ✅ SELECT DIRECTLY (no relevance filter in high_pref_only mode)
                 print(f"[SELECTED - HIGH PREF] {job_title} | {company_name}")
                 selected.append(job)
-        
+
             continue
 
-        # ✅ NORMAL MODE
-        # ✅ SELECT DIRECTLY (NO OTHER FILTERS)
-        # 🔥 Fetch HTML so AI filter can read the description
-        html = ""
+        # ✅ NORMAL MODE — fetch HTML, run exclude + relevance filters
+        html_content = ""
         try:
             rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
             if rr.status_code == 200 and not looks_like_error_page(rr.text):
-                html = rr.text
+                html_content = rr.text
         except Exception:
-            html = ""
-        job["html"] = html
-        
-        print(f"[SELECTED - HIGH PREF] {job_title} | {company_name}")
-        selected.append(job)
+            html_content = ""
+        job["html"] = html_content
+
         try:
             job_title = (job.get("title") or "").lower()
 
@@ -1158,13 +1164,10 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
                 continue
 
             # ✅ RELEVANCE FILTER
-            if relevance_filter.is_relevant_job(html, job.get("title") or "", keywords):
-
-                job["is_reposted"] = bool(looks_like_reposted(html)) or bool(job.get("is_reposted"))
-
+            if relevance_filter.is_relevant_job(html_content, job.get("title") or "", keywords):
+                job["is_reposted"] = bool(looks_like_reposted(html_content)) or bool(job.get("is_reposted"))
                 print(f"[SELECTED] {job_title} | {company_name}")
                 selected.append(job)
-
             else:
                 if in_high:
                     print(f"[HIGH PREF SKIPPED - RELEVANCE FAIL] {job_title} | {company_name}")
