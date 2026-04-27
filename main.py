@@ -1132,6 +1132,8 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
             continue
 
         # ✅ NORMAL MODE
+        # ✅ SELECT DIRECTLY (NO OTHER FILTERS)
+        # 🔥 Fetch HTML so AI filter can read the description
         html = ""
         try:
             rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
@@ -1140,6 +1142,9 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         except Exception:
             html = ""
         job["html"] = html
+        
+        print(f"[SELECTED - HIGH PREF] {job_title} | {company_name}")
+        selected.append(job)
         try:
             job_title = (job.get("title") or "").lower()
 
