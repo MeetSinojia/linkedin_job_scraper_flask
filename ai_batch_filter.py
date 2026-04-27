@@ -3,6 +3,7 @@
 from openai import OpenAI
 from relevance_filter import extract_description_text
 import json
+import re
 
 client = OpenAI()
 
@@ -85,6 +86,11 @@ Jobs:
         print("\n[AI RAW RESPONSE]")
         print(raw)
         print("=================================\n")
+
+        # Strip markdown fences if model wraps response in ```json ... ```
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-zA-Z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw).strip()
 
         try:
             parsed = json.loads(raw)
