@@ -78,11 +78,20 @@ Jobs:
             temperature=0
         )
 
-        raw = response.output[0].content[0].text.strip()
+        print("[DEBUG RESPONSE OBJ]", response)
 
+        # ✅ CORRECT WAY
+        raw = response.output_text.strip()
+        
         print("\n[AI RAW RESPONSE]")
         print(raw)
         print("=================================\n")
+        
+        try:
+            parsed = json.loads(raw)
+            return parsed
+        except Exception as e:
+            print("[AI PARSE ERROR]", e)
 
         # ✅ Parse JSON
         try:
