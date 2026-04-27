@@ -21,6 +21,7 @@ def evaluate_jobs_batch_ai(jobs: list) -> list:
         desc = desc[:1200] if desc else ""
 
         if not desc.strip():
+            print(f"[AI WARNING] Job {i} ('{job.get('title')}') has empty description — html missing or not fetched?")
             continue
 
         prepared_jobs.append({
@@ -30,6 +31,7 @@ def evaluate_jobs_batch_ai(jobs: list) -> list:
         })
 
     if not prepared_jobs:
+        print("[AI WARNING] All jobs had empty descriptions. Was html fetched before calling AI filter?")
         return []
 
     # 🔥 Build prompt
@@ -78,50 +80,21 @@ Jobs:
             temperature=0
         )
 
-        print("[DEBUG RESPONSE OBJ]", response)
-
-        # ✅ CORRECT WAY
         raw = response.output_text.strip()
-        
+
         print("\n[AI RAW RESPONSE]")
         print(raw)
         print("=================================\n")
-        
-        try:
-            parsed = json.loads(raw)
-            return parsed
-        except Exception as e:
-            print("[AI PARSE ERROR]", e)
 
-        # ✅ Parse JSON
         try:
             parsed = json.loads(raw)
             print(f"[AI PARSED RESULT COUNT]: {len(parsed)}")
             return parsed
-        except Exception as e:
+        except json.JSONDecodeError as e:
             print("[AI PARSE ERROR]", e)
-
-            # 🔥 fallback → avoid empty result
-            fallback = []
-            for j in prepared_jobs:
-                fallback.append({
-                    "index": j["index"],
-                    "decision": "FAIL",
-                    "score": 0
-                })
-
-            return fallback
+            # Fallback: fail all jobs so they are not silently dropped
+            return [{"index": j["index"], "decision": "FAIL", "score": 0} for j in prepared_jobs]
 
     except Exception as e:
         print("[AI ERROR]", e)
-
-        # 🔥 fallback
-        fallback = []
-        for j in prepared_jobs:
-            fallback.append({
-                "index": j["index"],
-                "decision": "FAIL",
-                "score": 0
-            })
-
-        return fallback
+        return [{"index": j["index"], "decision": "FAIL", "score": 0} for j in prepared_jobs]
