@@ -15,8 +15,10 @@ def evaluate_jobs_batch_ai(jobs: list) -> list:
 
     prepared_jobs = []
 
+    # 🔥 Prepare jobs (clean + trimmed)
     for i, job in enumerate(jobs):
-        desc = extract_description_text(job.get("html", ""))[:1200]
+        desc = extract_description_text(job.get("html", ""))
+        desc = desc[:1200] if desc else ""
 
         if not desc.strip():
             continue
@@ -30,7 +32,7 @@ def evaluate_jobs_batch_ai(jobs: list) -> list:
     if not prepared_jobs:
         return []
 
-    # 🔥 Build ONE prompt
+    # 🔥 Build prompt
     job_text = ""
     for j in prepared_jobs:
         job_text += f"""
@@ -49,18 +51,19 @@ Candidate Profile:
 
 Rules:
 - Score each job from 0 to 100
-- Prefer backend / distributed systems
-- Allow frontend/devops
-- Reject strong mismatch (QA, Data, HR, etc.)
+- Prefer backend / distributed systems roles
+- Allow frontend/devops roles if reasonable
+- Reject strong mismatch (QA, Data, HR, Sales, Support, etc.)
 - Reject very senior roles (5+ years)
 
-Return STRICT JSON ARRAY:
+Return ONLY valid JSON.
+Do NOT explain anything.
+Do NOT add text outside JSON.
+
+Example:
 [
-  {{
-    "index": 0,
-    "decision": "PASS or FAIL",
-    "score": number
-  }}
+  {{"index": 0, "decision": "PASS", "score": 80}},
+  {{"index": 1, "decision": "FAIL", "score": 30}}
 ]
 
 Jobs:
@@ -71,22 +74,45 @@ Jobs:
         response = client.responses.create(
             model="gpt-4o-mini",
             input=prompt,
-            max_output_tokens=100,
+            max_output_tokens=500,
             temperature=0
         )
 
         raw = response.output[0].content[0].text.strip()
 
-        print("[AI BATCH OUTPUT]")
+        print("\n[AI RAW RESPONSE]")
         print(raw)
+        print("=================================\n")
 
+        # ✅ Parse JSON
         try:
             parsed = json.loads(raw)
+            print(f"[AI PARSED RESULT COUNT]: {len(parsed)}")
             return parsed
-        except:
-            print("[AI PARSE ERROR]")
-            return []
+        except Exception as e:
+            print("[AI PARSE ERROR]", e)
+
+            # 🔥 fallback → avoid empty result
+            fallback = []
+            for j in prepared_jobs:
+                fallback.append({
+                    "index": j["index"],
+                    "decision": "FAIL",
+                    "score": 0
+                })
+
+            return fallback
 
     except Exception as e:
         print("[AI ERROR]", e)
-        return []
+
+        # 🔥 fallback
+        fallback = []
+        for j in prepared_jobs:
+            fallback.append({
+                "index": j["index"],
+                "decision": "FAIL",
+                "score": 0
+            })
+
+        return fallback
