@@ -31,10 +31,12 @@ from ai_batch_filter import evaluate_jobs_batch_ai
 import relevance_filter
 
 try:
-    from config.mongodb_config import get_collection, insert_job_if_new
+    from config.mongodb_config import get_collection, insert_job_if_new, get_rejection_collection, insert_rejection_if_new
 except Exception as e:
     get_collection = None
     insert_job_if_new = None
+    get_rejection_collection = None
+    insert_rejection_if_new = None
     print("[!] Could not import config.mongodb_config:", e)
 try:
     from config.telegram_client import format_job_message, send_telegram_message
@@ -69,6 +71,8 @@ def _norm_company(name):
 def run_ai_batch_filter(selected_jobs, batch_size=5):
     """
     Apply AI filtering ONLY on high preference jobs in batches.
+    Returns (passing_jobs, rejected_jobs) where rejected_jobs contains
+    only high-pref jobs that failed AI scoring.
     """
 
     high_pref_jobs = [j for j in selected_jobs if j.get("is_high_preference")]
@@ -77,9 +81,10 @@ def run_ai_batch_filter(selected_jobs, batch_size=5):
     print(f"[AI] Total high-pref jobs: {len(high_pref_jobs)}")
 
     if not high_pref_jobs:
-        return selected_jobs
+        return selected_jobs, []
 
     final_high_pref = []
+    ai_rejected = []  # high-pref jobs that failed AI
 
     # 🔥 Batch processing
     for i in range(0, len(high_pref_jobs), batch_size):
@@ -102,19 +107,22 @@ def run_ai_batch_filter(selected_jobs, batch_size=5):
                     continue
 
                 job = batch[idx]
+                job["ai_score"] = score  # store score on job for later use
 
                 if score >= 65:
                     print(f"[AI PASS] {job.get('title')} | Score: {score}")
                     final_high_pref.append(job)
                 else:
                     print(f"[AI FAIL] {job.get('title')} | Score: {score}")
+                    ai_rejected.append(job)
 
             except Exception as e:
                 print("[AI ERROR - RESULT PARSE]", e)
 
     print(f"[AI] Final high-pref after AI: {len(final_high_pref)}")
+    print(f"[AI] High-pref rejected by AI: {len(ai_rejected)}")
 
-    return non_high_pref_jobs + final_high_pref
+    return non_high_pref_jobs + final_high_pref, ai_rejected
 
 def _load_company_list(path):
     items = set()
@@ -1179,8 +1187,9 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
     print(f"[*] Final selected jobs BEFORE AI: {len(selected)}")
     print(f"[HIGH PREF SKIPPED COUNT]: {high_pref_skipped}")
 
-    # 🗄️ DB PRE-FILTER — remove already-seen jobs BEFORE spending AI tokens on them
     mongo_uri = (os.getenv("MONGO_URI") or "").strip()
+
+    # 🗄️ DB PRE-FILTER (main jobs) — skip already-notified jobs before AI
     if mongo_uri and get_collection is not None:
         try:
             coll = get_collection()
@@ -1199,8 +1208,45 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
         except Exception as e:
             print(f"[!] DB pre-filter error (continuing without filter): {e}")
 
+    # 🗄️ REJECTION PRE-FILTER — skip high-pref jobs already rejected by AI previously
+    if mongo_uri and get_rejection_collection is not None:
+        try:
+            rej_coll = get_rejection_collection()
+            high_pref_urls = [j.get("job_url") for j in selected if j.get("is_high_preference") and j.get("job_url")]
+            if high_pref_urls:
+                already_rejected = {
+                    d["job_url"]
+                    for d in rej_coll.find({"job_url": {"$in": high_pref_urls}}, {"job_url": 1})
+                    if d.get("job_url")
+                }
+                before = len(selected)
+                selected = [j for j in selected if j.get("job_url") not in already_rejected]
+                skipped = before - len(selected)
+                if skipped:
+                    print(f"[REJECTION PRE-FILTER] Removed {skipped} previously AI-rejected job(s). Remaining: {len(selected)}")
+        except Exception as e:
+            print(f"[!] Rejection pre-filter error (continuing without filter): {e}")
+
     # 🔥 AI BATCH FILTER
-    selected = run_ai_batch_filter(selected, batch_size=5)
+    selected, ai_rejected = run_ai_batch_filter(selected, batch_size=5)
+
+    # 💾 Save AI-rejected high-pref jobs to rejection collection
+    if mongo_uri and get_rejection_collection is not None and ai_rejected:
+        try:
+            rej_coll = get_rejection_collection()
+            saved = 0
+            for job in ai_rejected:
+                inserted, _ = insert_rejection_if_new(
+                    rej_coll, job,
+                    score=job.get("ai_score", 0),
+                    reason="AI score below threshold"
+                )
+                if inserted:
+                    saved += 1
+                    print(f"[REJECTION SAVED] {job.get('title')} | {job.get('company')} | score={job.get('ai_score', 0)}")
+            print(f"[REJECTION] Saved {saved}/{len(ai_rejected)} new rejections to DB.")
+        except Exception as e:
+            print(f"[!] Error saving rejections to DB: {e}")
 
     print(f"[*] Final selected jobs AFTER AI: {len(selected)}")
     # 📤 Push
