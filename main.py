@@ -1179,7 +1179,27 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
     print(f"[*] Final selected jobs BEFORE AI: {len(selected)}")
     print(f"[HIGH PREF SKIPPED COUNT]: {high_pref_skipped}")
 
-    # 🔥 AI BATCH FILTER (ONLY ADDITION)
+    # 🗄️ DB PRE-FILTER — remove already-seen jobs BEFORE spending AI tokens on them
+    mongo_uri = (os.getenv("MONGO_URI") or "").strip()
+    if mongo_uri and get_collection is not None:
+        try:
+            coll = get_collection()
+            job_urls = [j.get("job_url") for j in selected if j.get("job_url")]
+            if job_urls:
+                existing = {
+                    d["job_url"]
+                    for d in coll.find({"job_url": {"$in": job_urls}}, {"job_url": 1})
+                    if d.get("job_url")
+                }
+                before = len(selected)
+                selected = [j for j in selected if j.get("job_url") not in existing]
+                skipped = before - len(selected)
+                if skipped:
+                    print(f"[DB PRE-FILTER] Removed {skipped} already-seen job(s) before AI. Remaining: {len(selected)}")
+        except Exception as e:
+            print(f"[!] DB pre-filter error (continuing without filter): {e}")
+
+    # 🔥 AI BATCH FILTER
     selected = run_ai_batch_filter(selected, batch_size=5)
 
     print(f"[*] Final selected jobs AFTER AI: {len(selected)}")
