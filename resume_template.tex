@@ -18,7 +18,6 @@
 \usepackage[english]{babel}
 \usepackage{tabularx}
 
-
 \pagestyle{fancy}
 \fancyhf{}
 \fancyfoot{}
@@ -29,8 +28,8 @@
 \addtolength{\oddsidemargin}{-0.75in}
 \addtolength{\evensidemargin}{-0.75in}
 \addtolength{\textwidth}{1.5in}
-\addtolength{\topmargin}{-.85in} 
-\addtolength{\textheight}{1.2in}
+\addtolength{\topmargin}{-.90in} 
+\addtolength{\textheight}{1.7in}
 
 \urlstyle{same}
 
@@ -84,21 +83,31 @@
 \begin{document}
 %----------HEADING----------
 \begin{center}
-{\Huge \textbf{Meet Sinojia}}\\[6pt]
-
+{\Huge \textbf{Meet Sinojia}}\\[3pt]
 \small
-Pune, Maharashtra, IN \quad \textbar \quad
-+91-9426377084 \quad \textbar \quad
-\href{mailto:sinojiameet321@gmail.com}{sinojiameet321@gmail.com} \quad \textbar \quad
-\href{https://its-meet.vercel.app/}{Portfolio}
-
-\vspace{4pt}
-
-\href{https://linkedin.com/in/meet-sinojia-453595203}{LinkedIn} \quad \textbar \quad
-\href{https://github.com/MeetSinojia}{GitHub} \quad \textbar \quad
+Pune, India \quad\textbar\quad
++91-9426377084 \quad\textbar\quad
+\href{mailto:sinojiameet321@gmail.com}{sinojiameet321@gmail.com} \quad\textbar\quad
+\href{https://its-meet.vercel.app/}{Portfolio} \quad\textbar\quad
+\href{https://linkedin.com/in/meet-sinojia-453595203}{LinkedIn} \quad\textbar\quad
+\href{https://github.com/MeetSinojia}{GitHub} \quad\textbar\quad
 \href{https://leetcode.com/Meet_Sinojia}{LeetCode}
-
 \end{center}
+\vspace{-10pt}
+%-----------SUMMARY-----------
+\section{Summary}
+\begin{itemize}[leftmargin=0.15in, label={}]
+  \small{\item{
+    Software Engineer with 1.5+ years at \textbf{UBS} building
+    backend \textbf{microservices}, \textbf{ETL pipelines}, and
+    \textbf{REST APIs} for large-scale financial systems using
+    \textbf{Java, Python,} and \textbf{Spring Boot}. Shipped a
+    production app to the \textbf{Google Play Store}; 
+    \textbf{LeetCode Knight} (Top 5\%). Strong foundation in
+    distributed systems, system design, and cloud services
+    \textbf{(AWS)}.
+  }}
+\end{itemize}
 %-----------EXPERIENCE-----------
 \section{Experience}
 
@@ -108,20 +117,19 @@ Pune, Maharashtra, IN \quad \textbar \quad
     {Software Engineer}{Feb 2024 -- Present}
     {UBS}{Pune, IN}
     \resumeItemListStart
-    \resumeItem{Developed a \textbf{Spring Boot} microservice to aggregate calendar data from multiple upstream REST APIs, exposing a unified internal endpoint for downstream consumption.}
+    \resumeItem{Developed a \textbf{Spring Boot} microservice to aggregate calendar data from \textbf{upstream REST APIs} into a unified internal endpoint, adopted by \textbf{4 downstream teams} and eliminating redundant integration work.}
 \resumeItem{Optimized Data API integration by efficiently consuming paginated upstream APIs and applying server-side filtering, reducing average query response time from \textbf{10s to 2s} (80\% reduction).}
-      \resumeItem{Enhanced DQC pipelines processing \textbf{100GB+/month} by vectorizing operations with \textbf{NumPy} and \textbf{Pandas}, reducing processing time by \textbf{40\%} and improving pipeline reliability for downstream workflows.}
-      \resumeItem{Integrated backend APIs with React-based internal dashboards, consolidating data from multiple sources into a single view and eliminating manual cross-screen reporting for internal teams.}
+      \resumeItem{Enhanced DQC pipelines processing \textbf{100GB/month} by vectorizing operations with \textbf{NumPy} and \textbf{Pandas}, reducing processing time by \textbf{40\%} and improving pipeline reliability for downstream workflows.}
+      \resumeItem{Integrated backend APIs with \textbf{React}-based internal dashboards, consolidating \textbf{multiple data sources} into a single view — reducing analyst reporting time and eliminating manual cross-screen workflows for internal teams.}
 \resumeItem{Built API integrations for \textbf{CSV/XML} file-based data exchange with upstream systems, enabling automated data mastering and eliminating manual data ingestion workflows.}
-      \resumeItem{Implemented \textbf{role-based access control} on \textbf{25+ APIs} using \textbf{OAuth2}, ensuring secure, user-specific access.}
+      \resumeItem{Implemented \textbf{role-based access control} across \textbf{25+ APIs} using \textbf{OAuth2}, enforcing least-privilege access and meeting regulatory security requirements for sensitive financial data.}
       \resumeItem{Developed \textbf{ETL workflows} for \textbf{UBS--CS merger} data integration, enabling seamless migration across financial systems.}
-      \resumeItem{\textbf{Tech Stack:} Python, SQL, Java, Spring Boot, .NET, Angular, Autosys}
     \resumeItemListEnd
 
 \resumeSubheading
-    {Prism Developer}{Dec 2022 -- Aug 2023}
+    {Research Intern (Samsung Prism)}{Dec 2022 -- Aug 2023}
     {Samsung R\&D India}{Remote}
-     \resumeItemListStart
+    \resumeItemListStart
      \resumeItem{Built a real-time UWB system in Python using \textbf{MUSIC} and \textbf{ESPRIT}, achieving \textbf{86\% accuracy} on 12K+ samples.}
     \resumeItemListEnd
 
@@ -131,6 +139,7 @@ Pune, Maharashtra, IN \quad \textbar \quad
 \section{Projects}
 
 \resumeSubHeadingListStart
+
 \resumeProjectHeading
 {\textbf{GarageWala} $|$ \emph{Flutter, Golang, Gin, MySQL, AWS, Redis, Kafka}}
 {\href{https://play.google.com/store/apps/details?id=com.mrmechanic.app\&pcampaignid=web_share}{\underline{Published on Play Store}}}
@@ -148,6 +157,7 @@ Pune, Maharashtra, IN \quad \textbar \quad
   \resumeItem{Implemented \textbf{Redis caching} with \textbf{cache-aside pattern}, \textbf{LFU eviction}, and \textbf{TTL-based key management} to reduce database load and achieve low-latency URL resolution.}
   \resumeItem{Designed \textbf{distributed ID generation (Snowflake)} and a \textbf{Redis-based token bucket rate limiter}, and containerized using \textbf{Docker} with \textbf{Flyway migrations} for a production-ready architecture.}
 \resumeItemListEnd
+
 \resumeSubHeadingListEnd
 
 %-----------TECHNICAL SKILLS-----------
@@ -166,12 +176,14 @@ Pune, Maharashtra, IN \quad \textbar \quad
 \section{Achievements}
 \resumeSubHeadingListStart
   \resumeSubItem{
-    \textbf{Competitive Programming:} LeetCode Knight (\textbf{Rating: 1930+}, Top 5\%), CodeChef \textbf{3$\star$} (Rating: 1606, Top 10\%), Codeforces Pupil (Rating: 1284).
+    \textbf{Competitive Programming:} LeetCode Knight (\textbf{Rating: 1930+}, Top 5\%),
+    CodeChef \textbf{3$\star$} (Rating: 1606, Top 10\%).
   }
   \resumeSubItem{
-    \textbf{Binance Ideathon 2022:} Runner-up for building a blockchain-based solution under the \textbf{Blockchain for Good} initiative.
+    \textbf{Binance Ideathon 2022:} Runner-up for a blockchain-based solution under the Blockchain for Good initiative.
   }
 \resumeSubHeadingListEnd
+
 
 %-----------EDUCATION-----------
 \section{Education}
@@ -181,7 +193,6 @@ Pune, Maharashtra, IN \quad \textbar \quad
   \resumeSubheading
     {Vellore Institute of Technology}{Tamil Nadu, India}
     {Bachelor of Technology in Computer Science}{Sept 2020 -- Mar 2024}
-
 \resumeSubHeadingListEnd
 
 %-------------------------------------------
