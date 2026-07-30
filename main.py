@@ -308,6 +308,10 @@ def selenium_login_and_get_li_at(email, password, headful=True):
 def build_guest_api_url(search_url, start, count=PAGE_SIZE):
     parsed = urlparse(search_url)
     q = parse_qs(parsed.query, keep_blank_values=True)
+    # Remove LinkedIn's own pagination params — they conflict with 'start'
+    # and cause LinkedIn to ignore our start offset, returning page-0 results.
+    for k in ("position", "pageNum"):
+        q.pop(k, None)
     q['start'] = [str(start)]
     q['count'] = [str(count)]
     base = f"{parsed.scheme}://{parsed.netloc}/jobs-guest/jobs/api/seeMoreJobPostings/search"
@@ -323,7 +327,7 @@ def _normalized_query_for_guest(search_url):
     # Keep only stable filters/keywords.
     allowed = {
         "keywords", "location", "geoId", "f_TPR", "f_SAL", "f_EA",
-        "f_JT", "f_WT", "f_AL", "distance", "start", "count"
+        "f_JT", "f_WT", "f_AL", "f_E", "distance", "start", "count"
     }
     q = {k: v for k, v in q.items() if k in allowed}
     return q
@@ -339,7 +343,11 @@ def parse_job_links(fragment_html):
             href_base = "https:" + href_base
         if href_base.startswith("/"):
             href_base = "https://www.linkedin.com" + href_base
-        m = re.search(r"/jobs/view/(\d+)", href_base)
+        # LinkedIn now uses slug URLs: /jobs/view/title-at-company-1234567890
+        # The numeric job ID is the trailing number after the last hyphen.
+        m = re.search(r"/jobs/view/(?:.*?-)?(\d+)$", href_base.rstrip("/"))
+        if not m:
+            m = re.search(r"/jobs/view/(\d+)", href_base)
         jobid = m.group(1) if m else None
         results.append({"job_url": href_base, "job_id": jobid})
     return results
@@ -778,16 +786,18 @@ def scrape(search_url, session, li_at=None, max_pages=None, keywords=None, headf
             break
 
         page_cards = []
+        dup_count = 0
         for jd in cards:
             job_url = jd["job_url"]
             if job_url in seen:
+                dup_count += 1
                 continue
             seen.add(job_url)
             print("    -> processing", job_url)
             page_cards.append(jd)
 
         if not page_cards:
-            print("[*] No new jobs found on this page. Stopping pagination for this search.")
+            print(f"[*] No new jobs found on this page ({dup_count} duplicates). Stopping pagination for this search.")
             break
 
         with ThreadPoolExecutor(max_workers=page_workers) as pool:
