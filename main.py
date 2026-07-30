@@ -24,7 +24,6 @@ from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import re
 from ai_filter import evaluate_job_ai
 from ai_batch_filter import evaluate_jobs_batch_ai
 # import the relevance filter module you created
