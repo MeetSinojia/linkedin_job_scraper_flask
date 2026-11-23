@@ -4,6 +4,7 @@ Utilities to determine whether a LinkedIn job posting is relevant to the user's 
 (and to extract keywords from the resume).
 """
 
+import json
 import re
 from typing import Optional, Set
 from bs4 import BeautifulSoup
@@ -157,11 +158,36 @@ EXP_WORDS = {
     "senior": 5,
 }
 
+def _description_from_json_ld(soup: BeautifulSoup) -> str:
+    """LinkedIn guest pages put the real JD in JobPosting JSON-LD."""
+    for script in soup.select('script[type="application/ld+json"]'):
+        raw = script.string or script.get_text() or ""
+        if "description" not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        blobs = data if isinstance(data, list) else [data]
+        for blob in blobs:
+            if not isinstance(blob, dict):
+                continue
+            desc = blob.get("description")
+            if isinstance(desc, str) and desc.strip():
+                text = BeautifulSoup(desc, "lxml").get_text(" ", strip=True)
+                if text:
+                    return text
+    return ""
+
+
 def extract_description_text(html: str) -> str:
     """Try several LinkedIn description selectors and return combined text."""
     if not html:
         return ""
     soup = BeautifulSoup(html, "lxml")
+    ld = _description_from_json_ld(soup)
+    if ld:
+        return ld
     # common LinkedIn job description containers
     selectors = [
         "div.description", "div.jobs-description__container", "div.description__text",

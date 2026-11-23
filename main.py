@@ -358,6 +358,19 @@ def looks_like_error_page(text):
         return True
     return False
 
+def fetch_job_page_html(session, job_url):
+    """GET a job page. Returns HTML, or "" when the response is unusable."""
+    if not job_url:
+        return ""
+    try:
+        rr = session.get(job_url, timeout=REQUEST_TIMEOUT)
+        if rr.status_code == 200 and not looks_like_error_page(rr.text):
+            return rr.text
+        print(f"[!] job page unusable ({rr.status_code}) {job_url}")
+    except Exception as e:
+        print(f"[!] job page fetch error {job_url}: {e}")
+    return ""
+
 def extract_fields_from_html(html, job_url):
     out = {"job_url": job_url, "job_id": None, "title": None, "company": None,
            "location": None, "date_posted": None, "apply_link": None}
@@ -684,14 +697,19 @@ def scrape(search_url, session, li_at=None, max_pages=None, keywords=None, headf
 
     def _process_job_card(jd):
         job_url = jd["job_url"]
+        # Space detail requests so the guest search API is less likely to 429.
+        rand_sleep(0.6, 1.2)
         try:
-            r = session.get(job_url, timeout=REQUEST_TIMEOUT)
-            if r.status_code != 200 or looks_like_error_page(r.text):
+            page_html = fetch_job_page_html(session, job_url)
+            if not page_html:
                 raise RuntimeError("Requests fetch returned error or looks like login/error page")
-            out = extract_fields_from_html(r.text, job_url)
+            out = extract_fields_from_html(page_html, job_url)
             # User-requested behavior: keep LinkedIn URL, skip external apply-link reveal.
             out["apply_link"] = out.get("apply_link") or job_url
-            out["is_reposted"] = bool(looks_like_reposted(r.text))
+            out["is_reposted"] = bool(looks_like_reposted(page_html))
+            # Keep the page so the AI filter does not have to fetch it again
+            # (a second fetch often 429s and leaves the description empty).
+            out["html"] = page_html
             return out
         except Exception:
             return {
@@ -703,13 +721,21 @@ def scrape(search_url, session, li_at=None, max_pages=None, keywords=None, headf
                 "date_posted": None,
                 "apply_link": job_url,
                 "is_reposted": False,
+                "html": "",
             }
 
     def _fetch_cards_for_start(start_idx):
         api_url = build_guest_api_url(search_url, start_idx, count=guest_count)
         print(f"[*] Fetching guest API start={start_idx} count={guest_count}  (search: {search_url})")
         def _request_cards(url):
-            resp = session.get(url, timeout=REQUEST_TIMEOUT)
+            resp = None
+            for attempt in range(4):
+                resp = session.get(url, timeout=REQUEST_TIMEOUT)
+                if resp.status_code != 429:
+                    break
+                wait = min(60, 8 * (2 ** attempt))
+                print(f"[!] guest API 429, sleeping {wait}s (retry {attempt + 1}/4)")
+                time.sleep(wait)
             resp.raise_for_status()
             fragment = resp.text
             if fragment and fragment.strip().startswith("{"):
@@ -1142,14 +1168,11 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
                     high_pref_skipped += 1
                     continue
 
-                # 🔥 Fetch HTML so AI filter can read the job description
-                html_content = ""
-                try:
-                    rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
-                    if rr.status_code == 200 and not looks_like_error_page(rr.text):
-                        html_content = rr.text
-                except Exception:
-                    html_content = ""
+                # Reuse HTML captured while scraping. Refetch only if that fetch failed.
+                html_content = job.get("html") or ""
+                if not html_content:
+                    print(f"[!] no HTML from scrape, refetching {job.get('job_url')}")
+                    html_content = fetch_job_page_html(session, job.get("job_url"))
                 job["html"] = html_content
 
                 # ✅ SELECT DIRECTLY (no relevance filter in high_pref_only mode)
@@ -1158,14 +1181,11 @@ def main(urls_file_override=None, max_pages_override=None, high_pref_only=False)
 
             continue
 
-        # ✅ NORMAL MODE — fetch HTML, run exclude + relevance filters
-        html_content = ""
-        try:
-            rr = session.get(job.get("job_url"), timeout=REQUEST_TIMEOUT)
-            if rr.status_code == 200 and not looks_like_error_page(rr.text):
-                html_content = rr.text
-        except Exception:
-            html_content = ""
+        # ✅ NORMAL MODE — reuse scraped HTML, refetch only if missing
+        html_content = job.get("html") or ""
+        if not html_content:
+            print(f"[!] no HTML from scrape, refetching {job.get('job_url')}")
+            html_content = fetch_job_page_html(session, job.get("job_url"))
         job["html"] = html_content
 
         try:
